@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Retro Space Shooter</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #000000;
+            color: #ffffff;
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            text-align: center;
+        }
+        canvas {
+            background-color: #080808;
+            border: 2px solid #333;
+            box-shadow: 0 0 20px rgba(0, 255, 0, 0.5);
+            border-radius: 8px;
+        }
+        #game-info {
+            margin-top: 15px;
+            font-size: 1.2em;
+            color: #00ff00;
+        }
+        #controls {
+            margin-top: 10px;
+            color: #aaa;
+        }
+        #restart-button {
+            display: none;
+            margin-top: 20px;
+            padding: 10px 20px;
+            font-size: 1em;
+            color: #000;
+            background-color: #00ff00;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(0, 255, 0, 0.7);
+            transition: all 0.2s;
+        }
+        #restart-button:hover {
+            background-color: #fff;
+            color: #000;
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.9);
+        }
+    </style>
+</head>
+<body>
+    <h1>Retro Space Shooter</h1>
+    <canvas id="gameCanvas"></canvas>
+    <div id="game-info">HP: 100</div>
+    <div id="controls">Move: Arrow Keys | Shoot: WASD | Charged Shot: Shift + WASD</div>
+    <button id="restart-button">Restart Game</button>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const gameInfo = document.getElementById('game-info');
+        const restartButton = document.getElementById('restart-button');
+
+        // --- Game Configuration ---
+        const PLAYER_SIZE = 30;
+        const PLAYER_SPEED = 5;
+        const PLAYER_HP = 100;
+        const BULLET_SPEED = 7;
+        const BULLET_SIZE = 5;
+        const CHARGE_TIME = 2000; // 2 seconds in milliseconds
+        const ENEMY_SIZE = 35;
+        const ENEMY_HP = 2;
+        const ENEMY_SPAWN_INTERVAL = 1500; // milliseconds
+        const ENEMY_BULLET_SPEED = 4;
+
+        let player;
+        let bullets = [];
+        let enemies = [];
+        let enemyBullets = [];
+        let keys = {};
+        let chargeStartTime = 0;
+        let isCharging = false;
+        let isFullyCharged = false;
+        let lastEnemySpawn = 0;
+        let gameOver = false;
+        let animationFrameId;
+
+        // --- Utility Functions ---
+        function resizeCanvas() {
+            canvas.width = Math.min(window.innerWidth * 0.9, 800);
+            canvas.height = Math.min(window.innerHeight * 0.7, 600);
+        }
+
+        // --- Game Object Classes ---
+        class Player {
+            constructor(x, y, size, speed, hp) {
+                this.x = x;
+                this.y = y;
+                this.width = size;
+                this.height = size;
+                this.speed = speed;
+                this.hp = hp;
+                this.color = '#00ff00';
+            }
+
+            draw() {
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x, this.y, this.width, this.height);
+                ctx.strokeStyle = '#333';
+                ctx.strokeRect(this.x, this.y, this.width, this.height);
+            }
+
+            update() {
+                if (keys['ArrowUp'] && this.y > 0) this.y -= this.speed;
+                if (keys['ArrowDown'] && this.y < canvas.height - this.height) this.y += this.speed;
+                if (keys['ArrowLeft'] && this.x > 0) this.x -= this.speed;
+                if (keys['ArrowRight'] && this.x < canvas.width - this.width) this.x += this.speed;
+            }
+
+            shoot(direction, isCharged) {
+                const bulletSize = isCharged ? BULLET_SIZE * 2 : BULLET_SIZE;
+                const damage = isCharged ? 2 : 1;
+                const speedX = direction === 'a' ? -BULLET_SPEED : direction === 'd' ? BULLET_SPEED : 0;
+                const speedY = direction === 'w' ? -BULLET_SPEED : direction === 's' ? BULLET_SPEED : 0;
+
+                bullets.push(new Bullet(
+                    this.x + this.width / 2 - bulletSize / 2,
+                    this.y + this.height / 2 - bulletSize / 2,
+                    bulletSize,
+                    '#00ff00',
+                    speedX,
+                    speedY,
+                    damage
+                ));
+            }
+        }
+
+        class Bullet {
+            constructor(x, y, size, color, speedX, speedY, damage) {
+                this.x = x;
+                this.y = y;
+                this.width = size;
+                this.height = size;
+                this.color = color;
+                this.speedX = speedX;
+                this.speedY = speedY;
+                this.damage = damage || 1;
+            }
+
+            draw() {
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x, this.y, this.width, this.height);
+            }
+
+            update() {
+                this.x += this.speedX;
+                this.y += this.speedY;
+            }
+        }
+
+        class Enemy {
+            constructor(x, y, size, hp) {
+                this.x = x;
+                this.y = y;
+                this.width = size;
+                this.height = size;
+                this.hp = hp;
+                this.color = '#ff0000';
+                this.shootCooldown = Math.random() * 1000 + 1000;
+                this.lastShotTime = Date.now();
+            }
+
+            draw() {
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x, this.y, this.width, this.height);
+                 ctx.strokeStyle = '#333';
+                ctx.strokeRect(this.x, this.y, this.width, this.height);
+            }
+
+            update() {
+                // Simple movement towards the player's half of the screen
+                if (this.x < player.x) this.x += 1;
+                else this.x -= 1;
+                if (this.y < player.y) this.y += 1;
+                else this.y -= 1;
+
+                // Shooting logic
+                if (Date.now() - this.lastShotTime > this.shootCooldown) {
+                    this.shoot();
+                    this.lastShotTime = Date.now();
+                }
+            }
+
+            shoot() {
+                const angle = Math.atan2(player.y - this.y, player.x - this.x);
+                const speedX = Math.cos(angle) * ENEMY_BULLET_SPEED;
+                const speedY = Math.sin(angle) * ENEMY_BULLET_SPEED;
+                enemyBullets.push(new Bullet(
+                    this.x + this.width / 2 - BULLET_SIZE / 2,
+                    this.y + this.height / 2 - BULLET_SIZE / 2,
+                    BULLET_SIZE,
+                    '#ff4d4d',
+                    speedX,
+                    speedY
+                ));
+            }
+        }
+
+        // --- Game Logic Functions ---
+        function init() {
+            gameOver = false;
+            resizeCanvas();
+            player = new Player(canvas.width / 2 - PLAYER_SIZE / 2, canvas.height - PLAYER_SIZE - 20, PLAYER_SIZE, PLAYER_SPEED, PLAYER_HP);
+            bullets = [];
+            enemies = [];
+            enemyBullets = [];
+            keys = {};
+            isCharging = false;
+            isFullyCharged = false;
+            chargeStartTime = 0;
+            lastEnemySpawn = 0;
+            restartButton.style.display = 'none';
+            gameInfo.textContent = `HP: ${player.hp}`;
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+            }
+            gameLoop();
+        }
+
+        function spawnEnemy() {
+            const size = ENEMY_SIZE;
+            let x, y;
+            if (Math.random() < 0.5) {
+                // Spawn on left or right
+                x = Math.random() < 0.5 ? -size : canvas.width;
+                y = Math.random() * canvas.height;
+            } else {
+                // Spawn on top or bottom
+                x = Math.random() * canvas.width;
+                y = Math.random() < 0.5 ? -size : canvas.height;
+            }
+            enemies.push(new Enemy(x, y, size, ENEMY_HP));
+        }
+
+        function updateCharge() {
+            if (!isCharging) return;
+
+            const elapsedTime = Date.now() - chargeStartTime;
+            if (elapsedTime >= CHARGE_TIME) {
+                isFullyCharged = true;
+            }
+        }
+
+        function drawChargeBuffer() {
+            if (!isCharging && !isFullyCharged) return;
+
+            const elapsedTime = Date.now() - chargeStartTime;
+            const chargeRatio = Math.min(elapsedTime / CHARGE_TIME, 1);
+
+            let bufferColor;
+            let bufferRadius = player.width * 0.7;
+
+            if (isFullyCharged) {
+                // Pulsing effect when fully charged
+                const pulse = Math.sin(Date.now() / 100) * 2; // Bouncing effect
+                bufferRadius += pulse;
+                const greenValue = 200 + Math.floor(Math.sin(Date.now() / 100) * 55);
+                bufferColor = `rgba(0, ${greenValue}, 0, 0.7)`;
+            } else {
+                // Charging effect
+                const greenValue = 150 + Math.floor(105 * chargeRatio);
+                bufferColor = `rgba(0, ${greenValue}, 0, ${0.3 + 0.4 * chargeRatio})`;
+            }
+
+            ctx.beginPath();
+            ctx.arc(player.x + player.width / 2, player.y + player.height / 2, bufferRadius, 0, Math.PI * 2);
+            ctx.fillStyle = bufferColor;
+            ctx.fill();
+        }
+
+        function handleCollisions() {
+            // Player bullets hitting enemies
+            bullets.forEach((bullet, bIndex) => {
+                enemies.forEach((enemy, eIndex) => {
+                    if (bullet.x < enemy.x + enemy.width &&
+                        bullet.x + bullet.width > enemy.x &&
+                        bullet.y < enemy.y + enemy.height &&
+                        bullet.y + bullet.height > enemy.y) {
+                        
+                        enemy.hp -= bullet.damage;
+                        bullets.splice(bIndex, 1); // Remove bullet
+
+                        if (enemy.hp <= 0) {
+                            enemies.splice(eIndex, 1); // Remove enemy
+                        }
+                    }
+                });
+            });
+
+            // Enemy bullets hitting player
+            enemyBullets.forEach((bullet, bIndex) => {
+                if (bullet.x < player.x + player.width &&
+                    bullet.x + bullet.width > player.x &&
+                    bullet.y < player.y + player.height &&
+                    bullet.y + bullet.height > player.y) {
+                    
+                    player.hp -= bullet.damage;
+                    enemyBullets.splice(bIndex, 1);
+                    gameInfo.textContent = `HP: ${Math.max(0, player.hp)}`;
+                    if(player.hp <= 0) {
+                        endGame();
+                    }
+                }
+            });
+        }
+        
+        function endGame() {
+            gameOver = true;
+            cancelAnimationFrame(animationFrameId);
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#ff0000';
+            ctx.font = '50px "Courier New", Courier, monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2);
+            restartButton.style.display = 'block';
+        }
+
+
+        function gameLoop(timestamp) {
+            if (gameOver) return;
+
+            animationFrameId = requestAnimationFrame(gameLoop);
+
+            // --- Clear Canvas ---
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // --- Update and Draw ---
+            player.update();
+            player.draw();
+            
+            updateCharge();
+            drawChargeBuffer();
+
+            // Handle bullets
+            bullets.forEach((bullet, index) => {
+                bullet.update();
+                bullet.draw();
+                if (bullet.y < 0 || bullet.y > canvas.height || bullet.x < 0 || bullet.x > canvas.width) {
+                    bullets.splice(index, 1);
+                }
+            });
+            
+            // Handle enemy bullets
+            enemyBullets.forEach((bullet, index) => {
+                bullet.update();
+                bullet.draw();
+                 if (bullet.y < -10 || bullet.y > canvas.height + 10 || bullet.x < -10 || bullet.x > canvas.width + 10) {
+                    enemyBullets.splice(index, 1);
+                }
+            });
+
+            // Handle enemies
+            if (timestamp - lastEnemySpawn > ENEMY_SPAWN_INTERVAL) {
+                spawnEnemy();
+                lastEnemySpawn = timestamp;
+            }
+            enemies.forEach(enemy => {
+                enemy.update();
+                enemy.draw();
+            });
+
+            // --- Collisions ---
+            handleCollisions();
+        }
+
+        // --- Event Listeners ---
+        window.addEventListener('keydown', (e) => {
+            keys[e.key] = true;
+
+            const shootKey = e.key.toLowerCase();
+            if (['w', 'a', 's', 'd'].includes(shootKey)) {
+                if (keys['Shift']) {
+                    if (!isCharging && !isFullyCharged) {
+                        isCharging = true;
+                        chargeStartTime = Date.now();
+                    }
+                } else {
+                    player.shoot(shootKey, false);
+                }
+            }
+        });
+
+        window.addEventListener('keyup', (e) => {
+            keys[e.key] = false;
+
+            const shootKey = e.key.toLowerCase();
+            if (keys['Shift'] && ['w', 'a', 's', 'd'].includes(shootKey)) {
+                 if (isFullyCharged) {
+                    player.shoot(shootKey, true);
+                }
+                isCharging = false;
+                isFullyCharged = false;
+                chargeStartTime = 0;
+            }
+             // Handle case where shift is released before a shoot key
+            if (e.key === 'Shift') {
+                isCharging = false;
+                isFullyCharged = false;
+                chargeStartTime = 0;
+            }
+        });
+
+        window.addEventListener('resize', () => {
+            // We don't want to re-initialize the whole game on resize, just adjust the canvas.
+            // A more complex game might need to reposition elements.
+            resizeCanvas();
+        });
+        
+        restartButton.addEventListener('click', init);
+
+        // --- Start Game ---
+        init();
+
+    </script>
+</body>
+</html>
