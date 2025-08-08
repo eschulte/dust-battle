@@ -49,6 +49,7 @@
             justify-content: space-between;
             padding: 0 20px;
             box-sizing: border-box;
+            z-index: 10;
         }
         .control-pad {
             display: grid;
@@ -149,6 +150,7 @@
         let credits = 0;
         let enemiesKilledThisLevel = 0;
         let boss;
+        let activeTouches = {}; // To track touch events robustly
 
         // --- Shop Items ---
         const shopItems = [
@@ -213,11 +215,19 @@
             }
 
             update() {
-                // Changed from Arrow Keys to IJKL
+                // Movement based on the 'keys' object state
                 if ((keys['i'] || keys['I']) && this.y > 0) this.y -= PLAYER_SPEED;
                 if ((keys['k'] || keys['K']) && this.y < canvas.height - this.height) this.y += PLAYER_SPEED;
                 if ((keys['j'] || keys['J']) && this.x > 0) this.x -= PLAYER_SPEED;
                 if ((keys['l'] || keys['L']) && this.x < canvas.width - this.width) this.x += PLAYER_SPEED;
+
+                // Shooting based on the 'keys' object state (allows continuous fire)
+                if (!isCharging && !isFullyCharged) {
+                    if (keys['w'] || keys['W']) this.shoot('w', false);
+                    if (keys['a'] || keys['A']) this.shoot('a', false);
+                    if (keys['s'] || keys['S']) this.shoot('s', false);
+                    if (keys['d'] || keys['D']) this.shoot('d', false);
+                }
             }
 
             shoot(direction, isCharged) {
@@ -233,17 +243,13 @@
                 // Main bullet
                 bullets.push(new Bullet(this.x + this.width / 2 - bulletSize / 2, this.y + this.height / 2 - bulletSize / 2, bulletSize, '#00ff00', speedX, speedY, damage, piercing));
                 
-                // Homing missile chance
                 if (this.homingMissiles && Math.random() < 0.05) {
                      bullets.push(new Bullet(this.x + this.width / 2, this.y, 8, '#ff9900', 0, -5, damage * 2, false, true));
                 }
-
-                // Side cannons
                 if (this.sideCannons && !isCharged) {
                      bullets.push(new Bullet(this.x - 5, this.y + this.height/2, bulletSize, '#00dd00', speedX, speedY, damage, piercing));
                      bullets.push(new Bullet(this.x + this.width - 5, this.y + this.height/2, bulletSize, '#00dd00', speedX, speedY, damage, piercing));
                 }
-                // Rear cannon
                 if (this.rearCannon && !isCharged) {
                      bullets.push(new Bullet(this.x + this.width/2, this.y + this.height, bulletSize, '#00dd00', -speedX, -speedY, damage, piercing));
                 }
@@ -254,7 +260,7 @@
                 if (this.hp <= 0) {
                     if (this.extraLives > 0) {
                         this.extraLives--;
-                        this.hp = PLAYER_HP; // Restore to full
+                        this.hp = PLAYER_HP;
                     } else {
                         gameState = 'gameOver';
                     }
@@ -276,9 +282,9 @@
             draw() { ctx.fillStyle = this.color; ctx.fillRect(this.x, this.y, this.width, this.height); }
 
             update() {
-                if (this.homing && enemies.length > 0) {
+                if (this.homing && (enemies.length > 0 || boss)) {
                     if (!this.target || this.target.hp <= 0) {
-                        this.target = enemies[Math.floor(Math.random() * enemies.length)];
+                        this.target = boss || enemies[Math.floor(Math.random() * enemies.length)];
                     }
                     const angle = Math.atan2(this.target.y - this.y, this.target.x - this.x);
                     this.x += Math.cos(angle) * BULLET_SPEED;
@@ -319,7 +325,7 @@
                 this.color = '#ff00ff';
                 this.attackPattern = 'circle';
                 this.lastPatternChange = Date.now();
-                this.patternDuration = 7000; // 7 seconds
+                this.patternDuration = 7000;
                 this.shotAngle = 0;
              }
              
@@ -333,9 +339,8 @@
              
              shoot() {
                  if (this.attackPattern === 'circle') {
-                    // Make first boss easier
-                    this.shootCooldown = (level === 3) ? 250 : 100;
-                    const bulletCount = (level === 3) ? 6 : 8;
+                    this.shootCooldown = 250;
+                    const bulletCount = 6;
                     for (let i = 0; i < bulletCount; i++) {
                         const angle = this.shotAngle + (i * Math.PI / (bulletCount / 2));
                         enemyBullets.push(new Bullet(this.x + this.width / 2, this.y + this.height / 2, BULLET_SIZE, '#ff88ff', Math.cos(angle) * ENEMY_BULLET_SPEED, Math.sin(angle) * ENEMY_BULLET_SPEED));
@@ -382,7 +387,6 @@
         }
 
         function handleCollisions() {
-            // Player bullets hitting enemies
             bullets.forEach((bullet, bIndex) => {
                 const targetList = boss ? [boss] : enemies;
                 targetList.forEach((enemy, eIndex) => {
@@ -400,13 +404,11 @@
                 });
             });
 
-            // Enemy bullets hitting player
             enemyBullets.forEach((bullet, bIndex) => {
                 if (bullet.x < player.x + player.width && bullet.x + bullet.width > player.x && bullet.y < player.y + player.height && bullet.y + bullet.height > player.y) {
                     player.takeDamage(bullet.damage);
                     enemyBullets.splice(bIndex, 1);
                 }
-                // Shield orb collision
                 if (player.shieldOrb) {
                     const orbX = player.x + player.width / 2 + Math.cos(player.shieldOrbAngle) * 50;
                     const orbY = player.y + player.height / 2 + Math.sin(player.shieldOrbAngle) * 50;
@@ -477,7 +479,6 @@
                 shopButtons.push({ x, y, width: itemWidth, height: itemHeight, item });
             });
             
-            // Continue button
             const btnX = canvas.width/2 - 100, btnY = canvas.height - 70, btnW = 200, btnH = 50;
             ctx.fillStyle = '#0000cc';
             ctx.fillRect(btnX, btnY, btnW, btnH);
@@ -492,6 +493,7 @@
 
         function drawGame() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+            if (!player) return; // Don't run if player doesn't exist yet
             player.update(); player.draw();
             if (isCharging || isFullyCharged) drawChargeBuffer();
             bullets.forEach((b, i) => { b.update(); b.draw(); if (b.y < -10 || b.y > canvas.height + 10 || b.x < -10 || b.x > canvas.width + 10) bullets.splice(i, 1); });
@@ -517,7 +519,7 @@
         function drawGameOver() { /* ... same as before ... */ }
 
         // --- Main Game Loop ---
-        function gameLoop(timestamp) {
+        function gameLoop() {
             animationFrameId = requestAnimationFrame(gameLoop);
             switch (gameState) {
                 case 'title': drawTitleScreen(); break;
@@ -529,15 +531,14 @@
 
         // --- Event Listeners ---
         canvas.addEventListener('click', (e) => {
-            const rect = canvas.getBoundingClientRect();
-            const mouseX = e.clientX - rect.left;
-            const mouseY = e.clientY - rect.top;
-
             if (gameState === 'title') {
                 level = 1; credits = 0; PLAYER_HP = 5; PLAYER_SPEED = 4;
                 player = new Player(canvas.width / 2 - PLAYER_SIZE / 2, canvas.height - PLAYER_SIZE - 20);
-                gameState = 'shop'; // Start with the shop
+                gameState = 'shop';
             } else if (gameState === 'shop') {
+                const rect = canvas.getBoundingClientRect();
+                const mouseX = e.clientX - rect.left;
+                const mouseY = e.clientY - rect.top;
                 shopButtons.forEach(btn => {
                     if (mouseX > btn.x && mouseX < btn.x + btn.width && mouseY > btn.y && mouseY < btn.y + btn.height) {
                         if (btn.action === 'continue') {
@@ -561,9 +562,11 @@
         window.addEventListener('keydown', (e) => {
             keys[e.key] = true;
             const shootKey = e.key.toLowerCase();
-            if (['w', 'a', 's', 'd'].includes(shootKey) && (gameState === 'playing' || gameState === 'boss')) {
-                if (keys['Shift']) { if (!isCharging && !isFullyCharged) { isCharging = true; chargeStartTime = Date.now(); } } 
-                else { player.shoot(shootKey, false); }
+            if (keys['Shift'] && ['w', 'a', 's', 'd'].includes(shootKey) && (gameState === 'playing' || gameState === 'boss')) {
+                if (!isCharging && !isFullyCharged) { 
+                    isCharging = true; 
+                    chargeStartTime = Date.now(); 
+                }
             }
         });
 
@@ -577,31 +580,37 @@
             if (e.key === 'Shift') { isCharging = false; isFullyCharged = false; chargeStartTime = 0; }
         });
         
-        // --- Mobile Control Listeners ---
-        function handleTouch(e, isStart) {
-            e.preventDefault(); // Prevent scrolling/zooming
-            for (let i = 0; i < e.changedTouches.length; i++) {
-                const touch = e.changedTouches[i];
+        // --- Mobile Control Listeners (Robust Implementation) ---
+        function handleTouchStart(e) {
+            e.preventDefault();
+            for (const touch of e.changedTouches) {
                 const target = document.elementFromPoint(touch.clientX, touch.clientY);
                 if (target && target.classList.contains('control-button')) {
                     const key = target.getAttribute('data-key');
-                    if (key) {
-                        keys[key] = isStart;
-                        // Handle shooting for mobile
-                        if (isStart && ['w', 'a', 's', 'd'].includes(key)) {
-                            player.shoot(key, false);
-                        }
+                    if (key && !keys[key]) {
+                        keys[key] = true;
+                        activeTouches[touch.identifier] = key;
                     }
                 }
             }
         }
 
-        window.addEventListener('touchstart', (e) => handleTouch(e, true), { passive: false });
-        window.addEventListener('touchend', (e) => handleTouch(e, false), { passive: false });
-        window.addEventListener('touchcancel', (e) => handleTouch(e, false), { passive: false });
+        function handleTouchEnd(e) {
+            e.preventDefault();
+            for (const touch of e.changedTouches) {
+                const key = activeTouches[touch.identifier];
+                if (key) {
+                    keys[key] = false;
+                    delete activeTouches[touch.identifier];
+                }
+            }
+        }
 
+        window.addEventListener('touchstart', handleTouchStart, { passive: false });
+        window.addEventListener('touchend', handleTouchEnd, { passive: false });
+        window.addEventListener('touchcancel', handleTouchEnd, { passive: false });
 
-        // --- Re-pasting functions from previous version that were omitted for brevity ---
+        // --- Re-pasting functions ---
         function drawChargeBuffer() {
             if (!isCharging && !isFullyCharged) return;
             const elapsedTime = Date.now() - chargeStartTime;
