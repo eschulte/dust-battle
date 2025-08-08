@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Retro Space Shooter</title>
+    <title>Retro Space Shooter - Upgraded</title>
     <style>
         body {
             margin: 0;
@@ -23,8 +23,13 @@
             border: 2px solid #333;
             box-shadow: 0 0 20px rgba(0, 255, 0, 0.5);
             border-radius: 8px;
+            cursor: pointer;
         }
-        #game-info {
+        #game-info-container {
+            display: flex;
+            justify-content: space-between;
+            width: 800px;
+            max-width: 90vw;
             margin-top: 15px;
             font-size: 1.2em;
             color: #00ff00;
@@ -33,51 +38,40 @@
             margin-top: 10px;
             color: #aaa;
         }
-        #restart-button {
-            display: none;
-            margin-top: 20px;
-            padding: 10px 20px;
-            font-size: 1em;
-            color: #000;
-            background-color: #00ff00;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            box-shadow: 0 0 10px rgba(0, 255, 0, 0.7);
-            transition: all 0.2s;
-        }
-        #restart-button:hover {
-            background-color: #fff;
-            color: #000;
-            box-shadow: 0 0 20px rgba(255, 255, 255, 0.9);
-        }
     </style>
 </head>
 <body>
     <h1>Retro Space Shooter</h1>
     <canvas id="gameCanvas"></canvas>
-    <div id="game-info">HP: 100</div>
-    <div id="controls">Move: Arrow Keys | Shoot: WASD | Charged Shot: Shift + WASD</div>
-    <button id="restart-button">Restart Game</button>
+    <div id="game-info-container">
+        <div id="game-info-left">HP: 5 | Level: 1</div>
+        <div id="game-info-right">Credits: 0</div>
+    </div>
+    <div id="controls">Move: IJKL | Shoot: WASD | Charged Shot: Shift + WASD</div>
 
     <script>
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
-        const gameInfo = document.getElementById('game-info');
-        const restartButton = document.getElementById('restart-button');
+        const gameInfoLeft = document.getElementById('game-info-left');
+        const gameInfoRight = document.getElementById('game-info-right');
 
         // --- Game Configuration ---
         const PLAYER_SIZE = 30;
-        const PLAYER_SPEED = 5;
-        const PLAYER_HP = 100;
-        const BULLET_SPEED = 7;
-        const BULLET_SIZE = 5;
-        const CHARGE_TIME = 2000; // 2 seconds in milliseconds
+        let PLAYER_SPEED = 4;
+        let PLAYER_HP = 5;
+        let BULLET_SPEED = 7;
+        let BULLET_SIZE = 5;
+        let CHARGE_TIME = 2000; // 2 seconds
+        let CHARGED_SHOT_MULTIPLIER = 2;
         const ENEMY_SIZE = 35;
         const ENEMY_HP = 2;
-        const ENEMY_SPAWN_INTERVAL = 1500; // milliseconds
+        const ENEMY_SPAWN_INTERVAL = 1500;
         const ENEMY_BULLET_SPEED = 4;
+        const MAX_ENEMIES = 3;
+        const ENEMIES_PER_LEVEL = 10;
+        const BOSS_BASE_HP = 10;
 
+        // --- Game State ---
         let player;
         let bullets = [];
         let enemies = [];
@@ -87,216 +81,255 @@
         let isCharging = false;
         let isFullyCharged = false;
         let lastEnemySpawn = 0;
-        let gameOver = false;
         let animationFrameId;
+        let gameState = 'title'; // title, playing, shop, boss, gameOver
+        let level = 1;
+        let credits = 0;
+        let enemiesKilledThisLevel = 0;
+        let boss;
+
+        // --- Shop Items ---
+        const shopItems = [
+            { id: 'hp_up', name: 'Max HP +1', cost: 100, description: 'Increases maximum health by 1.', apply: () => { PLAYER_HP++; player.hp = PLAYER_HP; } },
+            { id: 'speed_up', name: 'Speed +10%', cost: 75, description: 'Increases movement speed.', apply: () => { PLAYER_SPEED *= 1.1; } },
+            { id: 'fire_rate', name: 'Fire Rate +15%', cost: 120, description: 'Shoots bullets faster.', apply: () => { /* Implemented in shoot logic */ player.fireRate *= 0.85; } },
+            { id: 'charge_speed', name: 'Charge Speed +20%', cost: 150, description: 'Reduces charged shot time.', apply: () => { CHARGE_TIME *= 0.8; } },
+            { id: 'bullet_damage', name: 'Bullet Damage +1', cost: 200, description: 'Increases base bullet damage.', apply: () => { player.bulletDamage++; } },
+            { id: 'charged_damage', name: 'Charged Damage x1.5', cost: 180, description: 'Increases charged shot damage.', apply: () => { CHARGED_SHOT_MULTIPLIER += 0.5; } },
+            { id: 'piercing_shot', name: 'Piercing Shot', cost: 500, description: 'Bullets pass through one enemy.', apply: () => { player.piercing = true; }, oneTime: true },
+            { id: 'heal_full', name: 'Full Heal', cost: 50, description: 'Restores all health.', apply: () => { player.hp = PLAYER_HP; } },
+            { id: 'extra_life', name: 'Extra Life', cost: 400, description: 'Survive a fatal hit once.', apply: () => { player.extraLives++; }, oneTime: true },
+            { id: 'credit_boost', name: 'Credit Boost 10%', cost: 250, description: 'Gain 10% more credits.', apply: () => { player.creditMultiplier += 0.1; } },
+            { id: 'side_cannons', name: 'Side Cannons', cost: 600, description: 'Adds two side guns.', apply: () => { player.sideCannons = true; }, oneTime: true },
+            { id: 'rear_cannon', name: 'Rear Cannon', cost: 350, description: 'Adds a rear-facing gun.', apply: () => { player.rearCannon = true; }, oneTime: true },
+            { id: 'homing_missiles', name: 'Homing Missiles', cost: 800, description: '5% chance to fire a homing missile.', apply: () => { player.homingMissiles = true; }, oneTime: true },
+            { id: 'shield_orb', name: 'Shield Orb', cost: 700, description: 'An orb blocks one enemy bullet.', apply: () => { player.shieldOrb = true; }, oneTime: true },
+            { id: 'nuke', name: 'Screen Nuke', cost: 300, description: 'Clears all enemies and bullets.', apply: () => { enemies = []; enemyBullets = []; } }
+        ];
+        let shopButtons = [];
 
         // --- Utility Functions ---
         function resizeCanvas() {
-            canvas.width = Math.min(window.innerWidth * 0.9, 800);
-            canvas.height = Math.min(window.innerHeight * 0.7, 600);
+            canvas.width = 800;
+            canvas.height = 600;
         }
 
         // --- Game Object Classes ---
         class Player {
-            constructor(x, y, size, speed, hp) {
+            constructor(x, y) {
                 this.x = x;
                 this.y = y;
-                this.width = size;
-                this.height = size;
-                this.speed = speed;
-                this.hp = hp;
+                this.width = PLAYER_SIZE;
+                this.height = PLAYER_SIZE;
+                this.hp = PLAYER_HP;
                 this.color = '#00ff00';
+                this.lastShotTime = 0;
+                this.fireRate = 300; // ms between shots
+                this.bulletDamage = 1;
+                this.piercing = false;
+                this.extraLives = 0;
+                this.creditMultiplier = 1.0;
+                this.sideCannons = false;
+                this.rearCannon = false;
+                this.homingMissiles = false;
+                this.shieldOrb = false;
+                this.shieldOrbAngle = 0;
             }
 
             draw() {
                 ctx.fillStyle = this.color;
                 ctx.fillRect(this.x, this.y, this.width, this.height);
-                ctx.strokeStyle = '#333';
-                ctx.strokeRect(this.x, this.y, this.width, this.height);
+                if (this.shieldOrb) {
+                    this.shieldOrbAngle += 0.05;
+                    const orbX = this.x + this.width / 2 + Math.cos(this.shieldOrbAngle) * 50;
+                    const orbY = this.y + this.height / 2 + Math.sin(this.shieldOrbAngle) * 50;
+                    ctx.fillStyle = 'rgba(0, 150, 255, 0.8)';
+                    ctx.beginPath();
+                    ctx.arc(orbX, orbY, 8, 0, Math.PI * 2);
+                    ctx.fill();
+                }
             }
 
             update() {
-                if (keys['ArrowUp'] && this.y > 0) this.y -= this.speed;
-                if (keys['ArrowDown'] && this.y < canvas.height - this.height) this.y += this.speed;
-                if (keys['ArrowLeft'] && this.x > 0) this.x -= this.speed;
-                if (keys['ArrowRight'] && this.x < canvas.width - this.width) this.x += this.speed;
+                // Changed from Arrow Keys to IJKL
+                if ((keys['i'] || keys['I']) && this.y > 0) this.y -= PLAYER_SPEED;
+                if ((keys['k'] || keys['K']) && this.y < canvas.height - this.height) this.y += PLAYER_SPEED;
+                if ((keys['j'] || keys['J']) && this.x > 0) this.x -= PLAYER_SPEED;
+                if ((keys['l'] || keys['L']) && this.x < canvas.width - this.width) this.x += PLAYER_SPEED;
             }
 
             shoot(direction, isCharged) {
+                if (Date.now() - this.lastShotTime < this.fireRate && !isCharged) return;
+                this.lastShotTime = Date.now();
+
                 const bulletSize = isCharged ? BULLET_SIZE * 2 : BULLET_SIZE;
-                const damage = isCharged ? 2 : 1;
+                const damage = isCharged ? this.bulletDamage * CHARGED_SHOT_MULTIPLIER : this.bulletDamage;
                 const speedX = direction === 'a' ? -BULLET_SPEED : direction === 'd' ? BULLET_SPEED : 0;
                 const speedY = direction === 'w' ? -BULLET_SPEED : direction === 's' ? BULLET_SPEED : 0;
+                const piercing = isCharged ? true : this.piercing;
 
-                bullets.push(new Bullet(
-                    this.x + this.width / 2 - bulletSize / 2,
-                    this.y + this.height / 2 - bulletSize / 2,
-                    bulletSize,
-                    '#00ff00',
-                    speedX,
-                    speedY,
-                    damage
-                ));
+                // Main bullet
+                bullets.push(new Bullet(this.x + this.width / 2 - bulletSize / 2, this.y + this.height / 2 - bulletSize / 2, bulletSize, '#00ff00', speedX, speedY, damage, piercing));
+                
+                // Homing missile chance
+                if (this.homingMissiles && Math.random() < 0.05) {
+                     bullets.push(new Bullet(this.x + this.width / 2, this.y, 8, '#ff9900', 0, -5, damage * 2, false, true));
+                }
+
+                // Side cannons
+                if (this.sideCannons && !isCharged) {
+                     bullets.push(new Bullet(this.x - 5, this.y + this.height/2, bulletSize, '#00dd00', speedX, speedY, damage, piercing));
+                     bullets.push(new Bullet(this.x + this.width - 5, this.y + this.height/2, bulletSize, '#00dd00', speedX, speedY, damage, piercing));
+                }
+                // Rear cannon
+                if (this.rearCannon && !isCharged) {
+                     bullets.push(new Bullet(this.x + this.width/2, this.y + this.height, bulletSize, '#00dd00', -speedX, -speedY, damage, piercing));
+                }
+            }
+            
+            takeDamage(damage) {
+                this.hp -= damage;
+                if (this.hp <= 0) {
+                    if (this.extraLives > 0) {
+                        this.extraLives--;
+                        this.hp = PLAYER_HP; // Restore to full
+                    } else {
+                        gameState = 'gameOver';
+                    }
+                }
             }
         }
 
         class Bullet {
-            constructor(x, y, size, color, speedX, speedY, damage) {
-                this.x = x;
-                this.y = y;
-                this.width = size;
-                this.height = size;
-                this.color = color;
-                this.speedX = speedX;
-                this.speedY = speedY;
+            constructor(x, y, size, color, speedX, speedY, damage, piercing = false, homing = false) {
+                this.x = x; this.y = y; this.width = size; this.height = size;
+                this.color = color; this.speedX = speedX; this.speedY = speedY;
                 this.damage = damage || 1;
+                this.piercing = piercing;
+                this.hits = 0;
+                this.homing = homing;
+                this.target = null;
             }
 
-            draw() {
-                ctx.fillStyle = this.color;
-                ctx.fillRect(this.x, this.y, this.width, this.height);
-            }
+            draw() { ctx.fillStyle = this.color; ctx.fillRect(this.x, this.y, this.width, this.height); }
 
             update() {
-                this.x += this.speedX;
-                this.y += this.speedY;
+                if (this.homing && enemies.length > 0) {
+                    if (!this.target || this.target.hp <= 0) {
+                        this.target = enemies[Math.floor(Math.random() * enemies.length)];
+                    }
+                    const angle = Math.atan2(this.target.y - this.y, this.target.x - this.x);
+                    this.x += Math.cos(angle) * BULLET_SPEED;
+                    this.y += Math.sin(angle) * BULLET_SPEED;
+                } else {
+                    this.x += this.speedX;
+                    this.y += this.speedY;
+                }
             }
         }
 
         class Enemy {
-            constructor(x, y, size, hp) {
-                this.x = x;
-                this.y = y;
-                this.width = size;
-                this.height = size;
-                this.hp = hp;
-                this.color = '#ff0000';
-                this.shootCooldown = Math.random() * 1000 + 1000;
+            constructor(x, y, size, hp, speed, creditValue) {
+                this.x = x; this.y = y; this.width = size; this.height = size;
+                this.hp = hp; this.speed = speed; this.color = '#ff0000';
+                this.shootCooldown = Math.random() * 1000 + 1500;
                 this.lastShotTime = Date.now();
+                this.creditValue = creditValue;
             }
 
-            draw() {
-                ctx.fillStyle = this.color;
-                ctx.fillRect(this.x, this.y, this.width, this.height);
-                 ctx.strokeStyle = '#333';
-                ctx.strokeRect(this.x, this.y, this.width, this.height);
-            }
+            draw() { ctx.fillStyle = this.color; ctx.fillRect(this.x, this.y, this.width, this.height); }
 
             update() {
-                // Simple movement towards the player's half of the screen
-                if (this.x < player.x) this.x += 1;
-                else this.x -= 1;
-                if (this.y < player.y) this.y += 1;
-                else this.y -= 1;
-
-                // Shooting logic
-                if (Date.now() - this.lastShotTime > this.shootCooldown) {
-                    this.shoot();
-                    this.lastShotTime = Date.now();
-                }
+                if (this.x < player.x) this.x += this.speed; else this.x -= this.speed;
+                if (this.y < player.y) this.y += this.speed; else this.y -= this.speed;
+                if (Date.now() - this.lastShotTime > this.shootCooldown) { this.shoot(); this.lastShotTime = Date.now(); }
             }
 
             shoot() {
                 const angle = Math.atan2(player.y - this.y, player.x - this.x);
-                const speedX = Math.cos(angle) * ENEMY_BULLET_SPEED;
-                const speedY = Math.sin(angle) * ENEMY_BULLET_SPEED;
-                enemyBullets.push(new Bullet(
-                    this.x + this.width / 2 - BULLET_SIZE / 2,
-                    this.y + this.height / 2 - BULLET_SIZE / 2,
-                    BULLET_SIZE,
-                    '#ff4d4d',
-                    speedX,
-                    speedY
-                ));
+                enemyBullets.push(new Bullet(this.x + this.width / 2, this.y + this.height / 2, BULLET_SIZE, '#ff4d4d', Math.cos(angle) * ENEMY_BULLET_SPEED, Math.sin(angle) * ENEMY_BULLET_SPEED));
             }
+        }
+        
+        class Boss extends Enemy {
+             constructor(x, y, size, hp, creditValue) {
+                super(x, y, size, hp, 0.5, creditValue);
+                this.color = '#ff00ff';
+                this.attackPattern = 'circle';
+                this.lastPatternChange = Date.now();
+                this.patternDuration = 7000; // 7 seconds
+                this.shotAngle = 0;
+             }
+             
+             update() {
+                 if (Date.now() - this.lastPatternChange > this.patternDuration) {
+                     this.attackPattern = Math.random() < 0.5 ? 'circle' : 'barrage';
+                     this.lastPatternChange = Date.now();
+                 }
+                 if (Date.now() - this.lastShotTime > this.shootCooldown) { this.shoot(); this.lastShotTime = Date.now(); }
+             }
+             
+             shoot() {
+                 if (this.attackPattern === 'circle') {
+                    this.shootCooldown = 100;
+                    for (let i = 0; i < 8; i++) {
+                        const angle = this.shotAngle + (i * Math.PI / 4);
+                        enemyBullets.push(new Bullet(this.x + this.width / 2, this.y + this.height / 2, BULLET_SIZE, '#ff88ff', Math.cos(angle) * ENEMY_BULLET_SPEED, Math.sin(angle) * ENEMY_BULLET_SPEED));
+                    }
+                    this.shotAngle += 0.2;
+                 } else { // barrage
+                    this.shootCooldown = 500;
+                    for (let i = 0; i < 5; i++) {
+                        const angle = Math.atan2(player.y - this.y, player.x - this.x) + (Math.random() - 0.5);
+                        enemyBullets.push(new Bullet(this.x + this.width / 2, this.y + this.height / 2, BULLET_SIZE * 1.5, '#ff88ff', Math.cos(angle) * ENEMY_BULLET_SPEED, Math.sin(angle) * ENEMY_BULLET_SPEED));
+                    }
+                 }
+             }
         }
 
         // --- Game Logic Functions ---
         function init() {
-            gameOver = false;
             resizeCanvas();
-            player = new Player(canvas.width / 2 - PLAYER_SIZE / 2, canvas.height - PLAYER_SIZE - 20, PLAYER_SIZE, PLAYER_SPEED, PLAYER_HP);
-            bullets = [];
-            enemies = [];
-            enemyBullets = [];
-            keys = {};
-            isCharging = false;
-            isFullyCharged = false;
-            chargeStartTime = 0;
-            lastEnemySpawn = 0;
-            restartButton.style.display = 'none';
-            gameInfo.textContent = `HP: ${player.hp}`;
-            if (animationFrameId) {
-                cancelAnimationFrame(animationFrameId);
-            }
+            player = new Player(canvas.width / 2 - PLAYER_SIZE / 2, canvas.height - PLAYER_SIZE - 20);
+            resetLevel();
+            gameState = 'title';
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
             gameLoop();
         }
 
+        function resetLevel() {
+            bullets = []; enemies = []; enemyBullets = []; keys = {};
+            isCharging = false; isFullyCharged = false; chargeStartTime = 0;
+            lastEnemySpawn = 0; enemiesKilledThisLevel = 0; boss = null;
+        }
+        
+        function nextLevel() {
+            level++;
+            resetLevel();
+            gameState = 'shop';
+        }
+
         function spawnEnemy() {
-            const size = ENEMY_SIZE;
-            let x, y;
-            if (Math.random() < 0.5) {
-                // Spawn on left or right
-                x = Math.random() < 0.5 ? -size : canvas.width;
-                y = Math.random() * canvas.height;
-            } else {
-                // Spawn on top or bottom
-                x = Math.random() * canvas.width;
-                y = Math.random() < 0.5 ? -size : canvas.height;
-            }
-            enemies.push(new Enemy(x, y, size, ENEMY_HP));
-        }
-
-        function updateCharge() {
-            if (!isCharging) return;
-
-            const elapsedTime = Date.now() - chargeStartTime;
-            if (elapsedTime >= CHARGE_TIME) {
-                isFullyCharged = true;
-            }
-        }
-
-        function drawChargeBuffer() {
-            if (!isCharging && !isFullyCharged) return;
-
-            const elapsedTime = Date.now() - chargeStartTime;
-            const chargeRatio = Math.min(elapsedTime / CHARGE_TIME, 1);
-
-            let bufferColor;
-            let bufferRadius = player.width * 0.7;
-
-            if (isFullyCharged) {
-                // Pulsing effect when fully charged
-                const pulse = Math.sin(Date.now() / 100) * 2; // Bouncing effect
-                bufferRadius += pulse;
-                const greenValue = 200 + Math.floor(Math.sin(Date.now() / 100) * 55);
-                bufferColor = `rgba(0, ${greenValue}, 0, 0.7)`;
-            } else {
-                // Charging effect
-                const greenValue = 150 + Math.floor(105 * chargeRatio);
-                bufferColor = `rgba(0, ${greenValue}, 0, ${0.3 + 0.4 * chargeRatio})`;
-            }
-
-            ctx.beginPath();
-            ctx.arc(player.x + player.width / 2, player.y + player.height / 2, bufferRadius, 0, Math.PI * 2);
-            ctx.fillStyle = bufferColor;
-            ctx.fill();
+            const size = ENEMY_SIZE; let x, y;
+            if (Math.random() < 0.5) { x = Math.random() < 0.5 ? -size : canvas.width; y = Math.random() * canvas.height; } 
+            else { x = Math.random() * canvas.width; y = Math.random() < 0.5 ? -size : canvas.height; }
+            enemies.push(new Enemy(x, y, size, ENEMY_HP, 1, 10));
         }
 
         function handleCollisions() {
             // Player bullets hitting enemies
             bullets.forEach((bullet, bIndex) => {
-                enemies.forEach((enemy, eIndex) => {
-                    if (bullet.x < enemy.x + enemy.width &&
-                        bullet.x + bullet.width > enemy.x &&
-                        bullet.y < enemy.y + enemy.height &&
-                        bullet.y + bullet.height > enemy.y) {
-                        
+                const targetList = boss ? [boss] : enemies;
+                targetList.forEach((enemy, eIndex) => {
+                    if (enemy && bullet.x < enemy.x + enemy.width && bullet.x + bullet.width > enemy.x && bullet.y < enemy.y + enemy.height && bullet.y + bullet.height > enemy.y) {
                         enemy.hp -= bullet.damage;
-                        bullets.splice(bIndex, 1); // Remove bullet
+                        if (!bullet.piercing || bullet.hits > 0) { bullets.splice(bIndex, 1); } 
+                        else { bullet.hits++; }
 
                         if (enemy.hp <= 0) {
-                            enemies.splice(eIndex, 1); // Remove enemy
+                            credits += Math.floor(enemy.creditValue * player.creditMultiplier);
+                            if (boss) { boss = null; nextLevel(); } 
+                            else { enemies.splice(eIndex, 1); enemiesKilledThisLevel++; }
                         }
                     }
                 });
@@ -304,129 +337,214 @@
 
             // Enemy bullets hitting player
             enemyBullets.forEach((bullet, bIndex) => {
-                if (bullet.x < player.x + player.width &&
-                    bullet.x + bullet.width > player.x &&
-                    bullet.y < player.y + player.height &&
-                    bullet.y + bullet.height > player.y) {
-                    
-                    player.hp -= bullet.damage;
+                if (bullet.x < player.x + player.width && bullet.x + bullet.width > player.x && bullet.y < player.y + player.height && bullet.y + bullet.height > player.y) {
+                    player.takeDamage(bullet.damage);
                     enemyBullets.splice(bIndex, 1);
-                    gameInfo.textContent = `HP: ${Math.max(0, player.hp)}`;
-                    if(player.hp <= 0) {
-                        endGame();
+                }
+                // Shield orb collision
+                if (player.shieldOrb) {
+                    const orbX = player.x + player.width / 2 + Math.cos(player.shieldOrbAngle) * 50;
+                    const orbY = player.y + player.height / 2 + Math.sin(player.shieldOrbAngle) * 50;
+                    const dist = Math.hypot(bullet.x - orbX, bullet.y - orbY);
+                    if (dist < 8 + bullet.width) {
+                        enemyBullets.splice(bIndex, 1);
                     }
                 }
             });
         }
         
-        function endGame() {
-            gameOver = true;
-            cancelAnimationFrame(animationFrameId);
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            ctx.fillStyle = '#ff0000';
-            ctx.font = '50px "Courier New", Courier, monospace';
-            ctx.textAlign = 'center';
-            ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2);
-            restartButton.style.display = 'block';
+        function updateUI() {
+            gameInfoLeft.textContent = `HP: ${player.hp}/${PLAYER_HP} | Level: ${level} | Lives: ${player.extraLives}`;
+            gameInfoRight.textContent = `Credits: ${credits}`;
         }
 
+        // --- Drawing Functions ---
+        function drawTitleScreen() {
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#00ff00';
+            ctx.font = '70px "Courier New"';
+            ctx.textAlign = 'center';
+            ctx.fillText('RETRO SHOOTER', canvas.width / 2, canvas.height / 2 - 50);
+            ctx.font = '30px "Courier New"';
+            ctx.fillText('Click to Start', canvas.width / 2, canvas.height / 2 + 50);
+        }
+        
+        function drawShop() {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#ffff00';
+            ctx.font = '50px "Courier New"';
+            ctx.textAlign = 'center';
+            ctx.fillText('UPGRADE SHOP', canvas.width / 2, 80);
+            
+            shopButtons = [];
+            const columns = 3;
+            const itemWidth = 240, itemHeight = 90;
+            const startX = (canvas.width - columns * itemWidth) / 2, startY = 120;
 
-        function gameLoop(timestamp) {
-            if (gameOver) return;
+            shopItems.forEach((item, i) => {
+                const col = i % columns;
+                const row = Math.floor(i / columns);
+                const x = startX + col * (itemWidth + 20);
+                const y = startY + row * (itemHeight + 20);
+                
+                const canAfford = credits >= item.cost;
+                const isPurchased = item.oneTime && player[item.id];
+                
+                ctx.fillStyle = isPurchased ? '#555' : canAfford ? '#004400' : '#440000';
+                ctx.fillRect(x, y, itemWidth, itemHeight);
+                ctx.strokeStyle = isPurchased ? '#888' : canAfford ? '#00ff00' : '#ff0000';
+                ctx.strokeRect(x, y, itemWidth, itemHeight);
+                
+                ctx.fillStyle = isPurchased ? '#aaa' : '#fff';
+                ctx.font = '16px "Courier New"';
+                ctx.textAlign = 'left';
+                ctx.fillText(item.name, x + 10, y + 25);
+                ctx.font = '14px "Courier New"';
+                ctx.fillStyle = '#ccc';
+                ctx.fillText(`Cost: ${item.cost}`, x + 10, y + 50);
+                if (isPurchased) {
+                     ctx.fillStyle = '#ffff00';
+                     ctx.fillText('PURCHASED', x + 10, y + 75);
+                }
 
-            animationFrameId = requestAnimationFrame(gameLoop);
+                shopButtons.push({ x, y, width: itemWidth, height: itemHeight, item });
+            });
+            
+            // Continue button
+            const btnX = canvas.width/2 - 100, btnY = canvas.height - 70, btnW = 200, btnH = 50;
+            ctx.fillStyle = '#0000cc';
+            ctx.fillRect(btnX, btnY, btnW, btnH);
+            ctx.strokeStyle = '#fff';
+            ctx.strokeRect(btnX, btnY, btnW, btnH);
+            ctx.fillStyle = '#fff';
+            ctx.font = '24px "Courier New"';
+            ctx.textAlign = 'center';
+            ctx.fillText('Continue', canvas.width/2, btnY + 33);
+            shopButtons.push({ x: btnX, y: btnY, width: btnW, height: btnH, action: 'continue' });
+        }
 
-            // --- Clear Canvas ---
+        function drawGame() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            // --- Update and Draw ---
-            player.update();
-            player.draw();
+            player.update(); player.draw();
+            if (isCharging || isFullyCharged) drawChargeBuffer();
+            bullets.forEach((b, i) => { b.update(); b.draw(); if (b.y < -10 || b.y > canvas.height + 10 || b.x < -10 || b.x > canvas.width + 10) bullets.splice(i, 1); });
+            enemyBullets.forEach((b, i) => { b.update(); b.draw(); if (b.y < -10 || b.y > canvas.height + 10 || b.x < -10 || b.x > canvas.width + 10) enemyBullets.splice(i, 1); });
             
-            updateCharge();
-            drawChargeBuffer();
-
-            // Handle bullets
-            bullets.forEach((bullet, index) => {
-                bullet.update();
-                bullet.draw();
-                if (bullet.y < 0 || bullet.y > canvas.height || bullet.x < 0 || bullet.x > canvas.width) {
-                    bullets.splice(index, 1);
+            if (gameState === 'playing') {
+                if (enemies.length < MAX_ENEMIES && Date.now() - lastEnemySpawn > ENEMY_SPAWN_INTERVAL) { spawnEnemy(); lastEnemySpawn = Date.now(); }
+                if (enemiesKilledThisLevel >= ENEMIES_PER_LEVEL) { nextLevel(); }
+            } else if (gameState === 'boss') {
+                if (!boss) {
+                    const bossHP = BOSS_BASE_HP * (level / 3);
+                    boss = new Boss(canvas.width/2 - 50, 50, 100, bossHP, 250 * (level/3));
                 }
-            });
-            
-            // Handle enemy bullets
-            enemyBullets.forEach((bullet, index) => {
-                bullet.update();
-                bullet.draw();
-                 if (bullet.y < -10 || bullet.y > canvas.height + 10 || bullet.x < -10 || bullet.x > canvas.width + 10) {
-                    enemyBullets.splice(index, 1);
-                }
-            });
-
-            // Handle enemies
-            if (timestamp - lastEnemySpawn > ENEMY_SPAWN_INTERVAL) {
-                spawnEnemy();
-                lastEnemySpawn = timestamp;
+                boss.update(); boss.draw();
             }
-            enemies.forEach(enemy => {
-                enemy.update();
-                enemy.draw();
-            });
 
-            // --- Collisions ---
+            enemies.forEach(e => { e.update(); e.draw(); });
             handleCollisions();
+            updateUI();
+        }
+
+        function drawChargeBuffer() { /* ... same as before ... */ }
+        function drawGameOver() { /* ... same as before ... */ }
+
+        // --- Main Game Loop ---
+        function gameLoop(timestamp) {
+            animationFrameId = requestAnimationFrame(gameLoop);
+            switch (gameState) {
+                case 'title': drawTitleScreen(); break;
+                case 'shop': drawShop(); break;
+                case 'playing': case 'boss': drawGame(); break;
+                case 'gameOver': drawGameOver(); break;
+            }
         }
 
         // --- Event Listeners ---
+        canvas.addEventListener('click', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+
+            if (gameState === 'title') {
+                level = 1; credits = 0; PLAYER_HP = 5; PLAYER_SPEED = 4;
+                player = new Player(canvas.width / 2 - PLAYER_SIZE / 2, canvas.height - PLAYER_SIZE - 20);
+                gameState = 'shop'; // Start with the shop
+            } else if (gameState === 'shop') {
+                shopButtons.forEach(btn => {
+                    if (mouseX > btn.x && mouseX < btn.x + btn.width && mouseY > btn.y && mouseY < btn.y + btn.height) {
+                        if (btn.action === 'continue') {
+                            gameState = (level % 3 === 0) ? 'boss' : 'playing';
+                        } else if (btn.item) {
+                            const item = btn.item;
+                            const isPurchased = item.oneTime && player[item.id];
+                            if (credits >= item.cost && !isPurchased) {
+                                credits -= item.cost;
+                                item.apply();
+                                updateUI();
+                            }
+                        }
+                    }
+                });
+            } else if (gameState === 'gameOver') {
+                init();
+            }
+        });
+
         window.addEventListener('keydown', (e) => {
             keys[e.key] = true;
-
             const shootKey = e.key.toLowerCase();
-            if (['w', 'a', 's', 'd'].includes(shootKey)) {
-                if (keys['Shift']) {
-                    if (!isCharging && !isFullyCharged) {
-                        isCharging = true;
-                        chargeStartTime = Date.now();
-                    }
-                } else {
-                    player.shoot(shootKey, false);
-                }
+            if (['w', 'a', 's', 'd'].includes(shootKey) && (gameState === 'playing' || gameState === 'boss')) {
+                if (keys['Shift']) { if (!isCharging && !isFullyCharged) { isCharging = true; chargeStartTime = Date.now(); } } 
+                else { player.shoot(shootKey, false); }
             }
         });
 
         window.addEventListener('keyup', (e) => {
             keys[e.key] = false;
-
             const shootKey = e.key.toLowerCase();
-            if (keys['Shift'] && ['w', 'a', 's', 'd'].includes(shootKey)) {
-                 if (isFullyCharged) {
-                    player.shoot(shootKey, true);
-                }
-                isCharging = false;
-                isFullyCharged = false;
-                chargeStartTime = 0;
+            if (keys['Shift'] && ['w', 'a', 's', 'd'].includes(shootKey) && (gameState === 'playing' || gameState === 'boss')) {
+                if (isFullyCharged) { player.shoot(shootKey, true); }
+                isCharging = false; isFullyCharged = false; chargeStartTime = 0;
             }
-             // Handle case where shift is released before a shoot key
-            if (e.key === 'Shift') {
-                isCharging = false;
-                isFullyCharged = false;
-                chargeStartTime = 0;
-            }
-        });
-
-        window.addEventListener('resize', () => {
-            // We don't want to re-initialize the whole game on resize, just adjust the canvas.
-            // A more complex game might need to reposition elements.
-            resizeCanvas();
+            if (e.key === 'Shift') { isCharging = false; isFullyCharged = false; chargeStartTime = 0; }
         });
         
-        restartButton.addEventListener('click', init);
+        // --- Re-pasting functions from previous version that were omitted for brevity ---
+        function drawChargeBuffer() {
+            if (!isCharging && !isFullyCharged) return;
+            const elapsedTime = Date.now() - chargeStartTime;
+            const chargeRatio = Math.min(elapsedTime / CHARGE_TIME, 1);
+            if (elapsedTime >= CHARGE_TIME) { isFullyCharged = true; }
+            let bufferColor; let bufferRadius = player.width * 0.7;
+            if (isFullyCharged) {
+                const pulse = Math.sin(Date.now() / 100) * 2; bufferRadius += pulse;
+                const greenValue = 200 + Math.floor(Math.sin(Date.now() / 100) * 55);
+                bufferColor = `rgba(0, ${greenValue}, 0, 0.7)`;
+            } else {
+                const greenValue = 150 + Math.floor(105 * chargeRatio);
+                bufferColor = `rgba(0, ${greenValue}, 0, ${0.3 + 0.4 * chargeRatio})`;
+            }
+            ctx.beginPath();
+            ctx.arc(player.x + player.width / 2, player.y + player.height / 2, bufferRadius, 0, Math.PI * 2);
+            ctx.fillStyle = bufferColor; ctx.fill();
+        }
+
+        function drawGameOver() {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#ff0000';
+            ctx.font = '50px "Courier New"';
+            ctx.textAlign = 'center';
+            ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2);
+            ctx.font = '24px "Courier New"';
+            ctx.fillText('Click to Restart', canvas.width / 2, canvas.height / 2 + 40);
+        }
 
         // --- Start Game ---
         init();
-
     </script>
 </body>
 </html>
