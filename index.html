@@ -8,7 +8,7 @@
         body {
             margin: 0;
             padding: 0;
-            background-color: #000000;
+            background-color: #3d3b3c;
             color: #ffffff;
             font-family: 'Courier New', Courier, monospace;
             display: flex;
@@ -21,8 +21,8 @@
         }
         canvas {
             background-color: #080808;
-            border: 2px solid #333;
-            box-shadow: 0 0 20px rgba(0, 255, 0, 0.5);
+            border: 2px solid #5d5d5d;
+            box-shadow: 0 0 20px rgba(150, 150, 150, 0.5);
             border-radius: 8px;
             cursor: pointer;
             max-width: 100%;
@@ -35,11 +35,11 @@
             max-width: 90vw;
             margin-top: 15px;
             font-size: 1.2em;
-            color: #00ff00;
+            color: #f7f3e8;
         }
         #controls {
             margin-top: 10px;
-            color: #aaa;
+            color: #ccc;
         }
         #mobile-controls {
             display: none; /* Hidden by default */
@@ -70,15 +70,15 @@
             color: white;
             user-select: none; /* Prevent text selection */
         }
-        #move-pad .control-button:nth-child(2) { grid-area: 1 / 2 / 2 / 3; } /* I */
-        #move-pad .control-button:nth-child(4) { grid-area: 2 / 1 / 3 / 2; } /* J */
-        #move-pad .control-button:nth-child(5) { grid-area: 2 / 3 / 3 / 4; } /* L */
-        #move-pad .control-button:nth-child(8) { grid-area: 3 / 2 / 4 / 3; } /* K */
+        #move-pad .control-button:nth-child(2) { grid-area: 1 / 2 / 2 / 3; }
+        #move-pad .control-button:nth-child(4) { grid-area: 2 / 1 / 3 / 2; }
+        #move-pad .control-button:nth-child(5) { grid-area: 2 / 3 / 3 / 4; }
+        #move-pad .control-button:nth-child(8) { grid-area: 3 / 2 / 4 / 3; }
         
-        #shoot-pad .control-button:nth-child(2) { grid-area: 1 / 2 / 2 / 3; } /* W */
-        #shoot-pad .control-button:nth-child(4) { grid-area: 2 / 1 / 3 / 2; } /* A */
-        #shoot-pad .control-button:nth-child(5) { grid-area: 2 / 3 / 3 / 4; } /* D */
-        #shoot-pad .control-button:nth-child(8) { grid-area: 3 / 2 / 4 / 3; } /* S */
+        #shoot-pad .control-button:nth-child(2) { grid-area: 1 / 2 / 2 / 3; }
+        #shoot-pad .control-button:nth-child(4) { grid-area: 2 / 1 / 3 / 2; }
+        #shoot-pad .control-button:nth-child(5) { grid-area: 2 / 3 / 3 / 4; }
+        #shoot-pad .control-button:nth-child(8) { grid-area: 3 / 2 / 4 / 3; }
 
         @media (max-width: 768px) {
             #mobile-controls {
@@ -121,6 +121,7 @@
         const gameInfoRight = document.getElementById('game-info-right');
         
         let stars = [];
+        let kitchenFloorPattern;
         
         // --- Game Configuration ---
         const PLAYER_SIZE = 30;
@@ -205,8 +206,22 @@
             }
         }
 
+        function createKitchenFloorPattern() {
+            const patternCanvas = document.createElement('canvas');
+            const patternCtx = patternCanvas.getContext('2d');
+            patternCanvas.width = 40;
+            patternCanvas.height = 40;
+
+            patternCtx.fillStyle = '#f7f3e8';
+            patternCtx.fillRect(0, 0, 40, 40);
+            patternCtx.fillStyle = '#d2d1d4';
+            patternCtx.fillRect(20, 0, 20, 20);
+            patternCtx.fillRect(0, 20, 20, 20);
+            kitchenFloorPattern = ctx.createPattern(patternCanvas, 'repeat');
+        }
+
         function drawStars() {
-            ctx.fillStyle = '#fff';
+            ctx.fillStyle = '#6b666a'; // Dust color
             stars.forEach(star => {
                 ctx.beginPath();
                 ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
@@ -253,7 +268,7 @@
                 this.width = PLAYER_SIZE;
                 this.height = PLAYER_SIZE;
                 this.hp = PLAYER_HP;
-                this.color = '#00ff00';
+                this.color = '#7d7465'; // Dust ship color
                 this.lastShotTime = 0;
                 this.fireRate = 300; // ms between shots
                 this.bulletDamage = 1;
@@ -274,25 +289,27 @@
             }
 
             draw() {
-                // Draw player ship
+                // Draw player ship as a jagged, dust-like shape
                 ctx.fillStyle = this.color;
                 ctx.beginPath();
-                ctx.moveTo(this.x + this.width / 2, this.y);
-                ctx.lineTo(this.x, this.y + this.height);
-                ctx.lineTo(this.x + this.width / 2, this.y + this.height * 0.7);
+                ctx.moveTo(this.x, this.y + this.height);
+                ctx.lineTo(this.x + this.width * 0.25, this.y + this.height * 0.5);
+                ctx.lineTo(this.x + this.width * 0.5, this.y);
+                ctx.lineTo(this.x + this.width * 0.75, this.y + this.height * 0.5);
                 ctx.lineTo(this.x + this.width, this.y + this.height);
+                ctx.lineTo(this.x + this.width * 0.5, this.y + this.height * 0.75);
                 ctx.closePath();
                 ctx.fill();
 
                 if (this.dashActive) {
-                    ctx.fillStyle = 'rgba(0, 255, 255, 0.5)';
+                    ctx.fillStyle = 'rgba(150, 150, 150, 0.5)';
                     ctx.fillRect(this.x - 5, this.y - 5, this.width + 10, this.height + 10);
                 }
                 if (this.shieldOrb) {
                     this.shieldOrbAngle += 0.05;
                     const orbX = this.x + this.width / 2 + Math.cos(this.shieldOrbAngle) * 50;
                     const orbY = this.y + this.height / 2 + Math.sin(this.shieldOrbAngle) * 50;
-                    ctx.fillStyle = 'rgba(0, 150, 255, 0.8)';
+                    ctx.fillStyle = 'rgba(200, 200, 200, 0.8)';
                     ctx.beginPath();
                     ctx.arc(orbX, orbY, 8, 0, Math.PI * 2);
                     ctx.fill();
@@ -305,7 +322,7 @@
                     this.y += this.dashDirection.y * DASH_DISTANCE / DASH_DURATION;
                     if (Date.now() > this.dashEndTime) {
                         this.dashActive = false;
-                        this.color = '#00ff00';
+                        this.color = '#7d7465';
                     }
                     return;
                 }
@@ -338,36 +355,36 @@
                 const piercing = isCharged ? true : this.piercing;
 
                 if (this.weapon === 'normal') {
-                    bullets.push(new Bullet(this.x + this.width / 2 - bulletSize / 2, this.y + this.height / 2 - bulletSize / 2, bulletSize, '#00ff00', speedX, speedY, damage, piercing));
+                    bullets.push(new Bullet(this.x + this.width / 2 - bulletSize / 2, this.y + this.height / 2 - bulletSize / 2, bulletSize, '#f7f3e8', speedX, speedY, damage, piercing));
                 } else if (this.weapon === 'beam') {
                     if (direction === 'w') {
-                        bullets.push(new Bullet(this.x + this.width / 2 - 5, this.y, 10, '#00ffff', 0, -BULLET_SPEED * 2, this.beamDamage, true));
+                        bullets.push(new Bullet(this.x + this.width / 2 - 5, this.y, 10, '#d2d1d4', 0, -BULLET_SPEED * 2, this.beamDamage, true));
                     }
                 } else if (this.weapon === 'spread') {
                     const spreadAngle = 0.5; // radians
                     for (let i = 0; i < SPREAD_BULLETS; i++) {
                         const angle = Math.atan2(speedY, speedX) + (i - Math.floor(SPREAD_BULLETS / 2)) * spreadAngle / (SPREAD_BULLETS - 1 || 1);
-                        bullets.push(new Bullet(this.x + this.width / 2, this.y + this.height / 2, bulletSize, '#00ff00', Math.cos(angle) * BULLET_SPEED, Math.sin(angle) * BULLET_SPEED, damage));
+                        bullets.push(new Bullet(this.x + this.width / 2, this.y + this.height / 2, bulletSize, '#f7f3e8', Math.cos(angle) * BULLET_SPEED, Math.sin(angle) * BULLET_SPEED, damage));
                     }
                 }
                 
                 if (this.homingMissiles && Math.random() < 0.05) {
-                    bullets.push(new Bullet(this.x + this.width / 2, this.y, 8, '#ff9900', 0, -5, damage * 2, false, true));
+                    bullets.push(new Bullet(this.x + this.width / 2, this.y, 8, '#a36d2c', 0, -5, damage * 2, false, true));
                 }
                 if (this.sideCannons && !isCharged) {
-                    bullets.push(new Bullet(this.x - 5, this.y + this.height/2, bulletSize, '#00dd00', speedX, speedY, damage, piercing));
-                    bullets.push(new Bullet(this.x + this.width - 5, this.y + this.height/2, bulletSize, '#00dd00', speedX, speedY, damage, piercing));
+                    bullets.push(new Bullet(this.x - 5, this.y + this.height/2, bulletSize, '#f7f3e8', speedX, speedY, damage, piercing));
+                    bullets.push(new Bullet(this.x + this.width - 5, this.y + this.height/2, bulletSize, '#f7f3e8', speedX, speedY, damage, piercing));
                 }
                 if (this.rearCannon && !isCharged) {
-                    bullets.push(new Bullet(this.x + this.width/2, this.y + this.height, bulletSize, '#00dd00', -speedX, -speedY, damage, piercing));
+                    bullets.push(new Bullet(this.x + this.width/2, this.y + this.height, bulletSize, '#f7f3e8', -speedX, -speedY, damage, piercing));
                 }
-                addParticles(this.x + this.width / 2, this.y + this.height, '#fff', 5, 1, 1);
+                addParticles(this.x + this.width / 2, this.y + this.height, '#f7f3e8', 5, 1, 1);
             }
             
             takeDamage(damage) {
                 if (this.dashActive) return;
                 this.hp -= damage;
-                addParticles(this.x + this.width / 2, this.y + this.height / 2, '#ff0000', 10, 2, 2);
+                addParticles(this.x + this.width / 2, this.y + this.height / 2, '#ff4d4d', 10, 2, 2);
                 if (this.hp <= 0) {
                     if (this.extraLives > 0) {
                         this.extraLives--;
@@ -383,7 +400,7 @@
                     lastDashTime = Date.now();
                     this.dashActive = true;
                     this.dashEndTime = Date.now() + DASH_DURATION;
-                    this.color = '#00ffff';
+                    this.color = '#c2a176';
                     
                     let dx = 0; let dy = 0;
                     if (keys['i'] || keys['I']) dy -= 1;
@@ -440,7 +457,7 @@
         class Enemy {
             constructor(x, y, size, hp, speed, creditValue) {
                 this.x = x; this.y = y; this.width = size; this.height = size;
-                this.hp = hp; this.speed = speed; this.color = '#ff0000';
+                this.hp = hp; this.speed = speed; this.color = '#7d7465';
                 this.shootCooldown = Math.random() * 1000 + 1500;
                 this.lastShotTime = Date.now();
                 this.creditValue = creditValue;
@@ -448,11 +465,15 @@
             }
 
             draw() {
+                // Draw enemy as a jagged, dust-like shape
                 ctx.fillStyle = this.color;
                 ctx.beginPath();
-                ctx.moveTo(this.x, this.y + this.height / 2);
-                ctx.lineTo(this.x + this.width, this.y);
+                ctx.moveTo(this.x + this.width, this.y + this.height * 0.5);
+                ctx.lineTo(this.x, this.y);
+                ctx.lineTo(this.x + this.width * 0.25, this.y + this.height * 0.5);
+                ctx.lineTo(this.x, this.y + this.height);
                 ctx.lineTo(this.x + this.width, this.y + this.height);
+                ctx.lineTo(this.x + this.width * 0.75, this.y + this.height * 0.5);
                 ctx.closePath();
                 ctx.fill();
             }
@@ -465,15 +486,25 @@
 
             shoot() {
                 const angle = Math.atan2(player.y - this.y, player.x - this.x);
-                enemyBullets.push(new Bullet(this.x + this.width / 2, this.y + this.height / 2, BULLET_SIZE, '#ff4d4d', Math.cos(angle) * ENEMY_BULLET_SPEED, Math.sin(angle) * ENEMY_BULLET_SPEED));
+                enemyBullets.push(new Bullet(this.x + this.width / 2, this.y + this.height / 2, BULLET_SIZE, '#6b666a', Math.cos(angle) * ENEMY_BULLET_SPEED, Math.sin(angle) * ENEMY_BULLET_SPEED));
             }
         }
         
         class Swarmer extends Enemy {
             constructor(x, y, size, hp, speed, creditValue) {
                 super(x, y, size, hp, speed * 2, creditValue);
-                this.color = '#ff9900';
+                this.color = '#a36d2c';
                 this.type = 'swarmer';
+            }
+            draw() {
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.moveTo(this.x + this.width / 2, this.y);
+                ctx.lineTo(this.x, this.y + this.height * 0.75);
+                ctx.lineTo(this.x + this.width / 2, this.y + this.height);
+                ctx.lineTo(this.x + this.width, this.y + this.height * 0.75);
+                ctx.closePath();
+                ctx.fill();
             }
             shoot() {} // Swarmers don't shoot
         }
@@ -481,27 +512,53 @@
         class Turret extends Enemy {
             constructor(x, y, size, hp, creditValue) {
                 super(x, y, size, hp, 0, creditValue);
-                this.color = '#9900ff';
+                this.color = '#c2a176';
                 this.type = 'turret';
                 this.shootCooldown = 2000;
+            }
+            draw() {
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x + this.width / 2, this.y + this.height / 2, this.width / 2, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = '#6b666a';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(this.x + this.width / 2, this.y + this.height / 2);
+                const angle = Math.atan2(player.y - this.y, player.x - this.x);
+                ctx.lineTo(this.x + this.width / 2 + Math.cos(angle) * this.width, this.y + this.height / 2 + Math.sin(angle) * this.height);
+                ctx.stroke();
             }
             update() { /* Does not move */
                 if (Date.now() - this.lastShotTime > this.shootCooldown) { this.shoot(); this.lastShotTime = Date.now(); }
             }
             shoot() {
                 const angle = Math.atan2(player.y - this.y, player.x - this.x);
-                enemyBullets.push(new Bullet(this.x + this.width / 2, this.y + this.height / 2, BULLET_SIZE, '#ff4d4d', Math.cos(angle) * ENEMY_BULLET_SPEED * 1.5, Math.sin(angle) * ENEMY_BULLET_SPEED * 1.5));
+                enemyBullets.push(new Bullet(this.x + this.width / 2, this.y + this.height / 2, BULLET_SIZE, '#6b666a', Math.cos(angle) * ENEMY_BULLET_SPEED * 1.5, Math.sin(angle) * ENEMY_BULLET_SPEED * 1.5));
             }
         }
         
         class Boss extends Enemy {
              constructor(x, y, size, hp, creditValue) {
                super(x, y, size, hp, 0.5, creditValue);
-               this.color = '#ff00ff';
+               this.color = '#946d5c';
                this.attackPattern = 'circle';
                this.lastPatternChange = Date.now();
                this.patternDuration = 7000;
                this.shotAngle = 0;
+             }
+             draw() {
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.moveTo(this.x + this.width * 0.5, this.y);
+                ctx.lineTo(this.x, this.y + this.height * 0.5);
+                ctx.lineTo(this.x + this.width * 0.5, this.y + this.height);
+                ctx.lineTo(this.x + this.width, this.y + this.height * 0.5);
+                ctx.closePath();
+                ctx.fill();
+                ctx.strokeStyle = '#6b666a';
+                ctx.lineWidth = 4;
+                ctx.stroke();
              }
              
              update() {
@@ -518,7 +575,7 @@
                     const bulletCount = 6;
                     for (let i = 0; i < bulletCount; i++) {
                        const angle = this.shotAngle + (i * Math.PI / (bulletCount / 2));
-                       enemyBullets.push(new Bullet(this.x + this.width / 2, this.y + this.height / 2, BULLET_SIZE, '#ff88ff', Math.cos(angle) * ENEMY_BULLET_SPEED, Math.sin(angle) * ENEMY_BULLET_SPEED));
+                       enemyBullets.push(new Bullet(this.x + this.width / 2, this.y + this.height / 2, BULLET_SIZE, '#946d5c', Math.cos(angle) * ENEMY_BULLET_SPEED, Math.sin(angle) * ENEMY_BULLET_SPEED));
                     }
                     this.shotAngle += 0.2;
                  } else { // barrage
@@ -526,7 +583,7 @@
                     const bulletCount = (level === 3) ? 3 : 5;
                     for (let i = 0; i < bulletCount; i++) {
                        const angle = Math.atan2(player.y - this.y, player.x - this.x) + (Math.random() - 0.5);
-                       enemyBullets.push(new Bullet(this.x + this.width / 2, this.y + this.height / 2, BULLET_SIZE * 1.5, '#ff88ff', Math.cos(angle) * ENEMY_BULLET_SPEED, Math.sin(angle) * ENEMY_BULLET_SPEED));
+                       enemyBullets.push(new Bullet(this.x + this.width / 2, this.y + this.height / 2, BULLET_SIZE * 1.5, '#946d5c', Math.cos(angle) * ENEMY_BULLET_SPEED, Math.sin(angle) * ENEMY_BULLET_SPEED));
                     }
                  }
              }
@@ -536,6 +593,7 @@
         function init() {
             resizeCanvas();
             createStars();
+            createKitchenFloorPattern();
             player = new Player(canvas.width / 2 - PLAYER_SIZE / 2, canvas.height - PLAYER_SIZE - 20);
             resetLevel();
             gameState = 'title';
@@ -577,7 +635,7 @@
                 targetList.forEach((enemy, eIndex) => {
                     if (enemy && bullet.x < enemy.x + enemy.width && bullet.x + bullet.width > enemy.x && bullet.y < enemy.y + enemy.height && bullet.y + bullet.height > enemy.y) {
                         enemy.hp -= bullet.damage;
-                        addParticles(bullet.x, bullet.y, '#fff', 3, 0.5, 1);
+                        addParticles(bullet.x, bullet.y, '#f7f3e8', 3, 0.5, 1);
                         if (!bullet.piercing || bullet.hits > 0) { bullets.splice(bIndex, 1); } 
                         else { bullet.hits++; }
 
@@ -630,7 +688,7 @@
         function drawTitleScreen() {
             ctx.fillStyle = '#000';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
-            ctx.fillStyle = '#00ff00';
+            ctx.fillStyle = '#f7f3e8';
             ctx.font = '70px "Courier New"';
             ctx.textAlign = 'center';
             ctx.fillText('DUST BATTLE', canvas.width / 2, canvas.height / 2 - 50);
@@ -641,7 +699,7 @@
         function drawShop() {
             ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
-            ctx.fillStyle = '#ffff00';
+            ctx.fillStyle = '#d2d1d4';
             ctx.font = '50px "Courier New"';
             ctx.textAlign = 'center';
             ctx.fillText('UPGRADE SHOP', canvas.width / 2, 80);
@@ -660,9 +718,9 @@
                 const canAfford = credits >= item.cost;
                 const isPurchased = item.oneTime && player[item.id.replace(/_(\w)/g, (match, p1) => p1.toUpperCase())];
                 
-                ctx.fillStyle = isPurchased ? '#555' : canAfford ? '#004400' : '#440000';
+                ctx.fillStyle = isPurchased ? '#555' : canAfford ? '#3b4d3b' : '#4d3b3b';
                 ctx.fillRect(x, y, itemWidth, itemHeight);
-                ctx.strokeStyle = isPurchased ? '#888' : canAfford ? '#00ff00' : '#ff0000';
+                ctx.strokeStyle = isPurchased ? '#888' : canAfford ? '#d2d1d4' : '#6b666a';
                 ctx.strokeRect(x, y, itemWidth, itemHeight);
                 
                 ctx.fillStyle = isPurchased ? '#aaa' : '#fff';
@@ -673,7 +731,7 @@
                 ctx.fillStyle = '#ccc';
                 ctx.fillText(`Cost: ${item.cost}`, x + 10, y + 50);
                 if (isPurchased) {
-                    ctx.fillStyle = '#ffff00';
+                    ctx.fillStyle = '#d2d1d4';
                     ctx.fillText('PURCHASED', x + 10, y + 75);
                 }
 
@@ -681,7 +739,7 @@
             });
             
             const btnX = canvas.width/2 - 100, btnY = canvas.height - 70, btnW = 200, btnH = 50;
-            ctx.fillStyle = '#0000cc';
+            ctx.fillStyle = '#3b4d3b';
             ctx.fillRect(btnX, btnY, btnW, btnH);
             ctx.strokeStyle = '#fff';
             ctx.strokeRect(btnX, btnY, btnW, btnH);
@@ -693,7 +751,10 @@
         }
 
         function drawGame() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            // Draw kitchen floor background
+            ctx.fillStyle = kitchenFloorPattern;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
             drawStars();
             
             if (!player) return;
@@ -729,10 +790,9 @@
             if (isFullyCharged) {
                 const pulse = Math.sin(Date.now() / 100) * 2; bufferRadius += pulse;
                 const greenValue = 200 + Math.floor(Math.sin(Date.now() / 100) * 55);
-                bufferColor = `rgba(0, ${greenValue}, 0, 0.7)`;
+                bufferColor = `rgba(150, 150, 150, 0.7)`;
             } else {
-                const greenValue = 150 + Math.floor(105 * chargeRatio);
-                bufferColor = `rgba(0, ${greenValue}, 0, ${0.3 + 0.4 * chargeRatio})`;
+                bufferColor = `rgba(150, 150, 150, ${0.3 + 0.4 * chargeRatio})`;
             }
             ctx.beginPath();
             ctx.arc(player.x + player.width / 2, player.y + player.height / 2, bufferRadius, 0, Math.PI * 2);
@@ -742,7 +802,7 @@
         function drawGameOver() {
             ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
-            ctx.fillStyle = '#ff0000';
+            ctx.fillStyle = '#c2a176';
             ctx.font = '50px "Courier New"';
             ctx.textAlign = 'center';
             ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2);
