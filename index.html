@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Dust Battle</title>
+    <title>Retro Space Shooter - Upgraded</title>
     <style>
         body {
             margin: 0;
             padding: 0;
-            background-color: #3d3b3c;
+            background-color: #000000;
             color: #ffffff;
             font-family: 'Courier New', Courier, monospace;
             display: flex;
@@ -21,8 +21,8 @@
         }
         canvas {
             background-color: #080808;
-            border: 2px solid #5d5d5d;
-            box-shadow: 0 0 20px rgba(150, 150, 150, 0.5);
+            border: 2px solid #333;
+            box-shadow: 0 0 20px rgba(0, 255, 0, 0.5);
             border-radius: 8px;
             cursor: pointer;
             max-width: 100%;
@@ -35,11 +35,11 @@
             max-width: 90vw;
             margin-top: 15px;
             font-size: 1.2em;
-            color: #f7f3e8;
+            color: #00ff00;
         }
         #controls {
             margin-top: 10px;
-            color: #ccc;
+            color: #aaa;
         }
         #mobile-controls {
             display: none; /* Hidden by default */
@@ -70,15 +70,15 @@
             color: white;
             user-select: none; /* Prevent text selection */
         }
-        #move-pad .control-button:nth-child(2) { grid-area: 1 / 2 / 2 / 3; }
-        #move-pad .control-button:nth-child(4) { grid-area: 2 / 1 / 3 / 2; }
-        #move-pad .control-button:nth-child(5) { grid-area: 2 / 3 / 3 / 4; }
-        #move-pad .control-button:nth-child(8) { grid-area: 3 / 2 / 4 / 3; }
+        #move-pad .control-button:nth-child(2) { grid-area: 1 / 2 / 2 / 3; } /* I */
+        #move-pad .control-button:nth-child(4) { grid-area: 2 / 1 / 3 / 2; } /* J */
+        #move-pad .control-button:nth-child(5) { grid-area: 2 / 3 / 3 / 4; } /* L */
+        #move-pad .control-button:nth-child(8) { grid-area: 3 / 2 / 4 / 3; } /* K */
         
-        #shoot-pad .control-button:nth-child(2) { grid-area: 1 / 2 / 2 / 3; }
-        #shoot-pad .control-button:nth-child(4) { grid-area: 2 / 1 / 3 / 2; }
-        #shoot-pad .control-button:nth-child(5) { grid-area: 2 / 3 / 3 / 4; }
-        #shoot-pad .control-button:nth-child(8) { grid-area: 3 / 2 / 4 / 3; }
+        #shoot-pad .control-button:nth-child(2) { grid-area: 1 / 2 / 2 / 3; } /* W */
+        #shoot-pad .control-button:nth-child(4) { grid-area: 2 / 1 / 3 / 2; } /* A */
+        #shoot-pad .control-button:nth-child(5) { grid-area: 2 / 3 / 3 / 4; } /* D */
+        #shoot-pad .control-button:nth-child(8) { grid-area: 3 / 2 / 4 / 3; } /* S */
 
         @media (max-width: 768px) {
             #mobile-controls {
@@ -91,15 +91,13 @@
     </style>
 </head>
 <body>
-    <h1>Dust Battle</h1>
+    <h1>Retro Space Shooter</h1>
     <canvas id="gameCanvas"></canvas>
     <div id="game-info-container">
-        <div id="game-info-left">HP: 5 | Level: 1 | Weapon: Normal</div>
+        <div id="game-info-left">HP: 5 | Level: 1</div>
         <div id="game-info-right">Credits: 0</div>
     </div>
-    <div id="controls">
-        Move: IJKL | Shoot: WASD | Charged Shot: Shift + WASD | Dash: Space | Weapon: 1, 2, 3
-    </div>
+    <div id="controls">Move: IJKL | Shoot: WASD | Charged Shot: Shift + WASD</div>
 
     <div id="mobile-controls">
         <div id="move-pad" class="control-pad">
@@ -119,10 +117,7 @@
         const ctx = canvas.getContext('2d');
         const gameInfoLeft = document.getElementById('game-info-left');
         const gameInfoRight = document.getElementById('game-info-right');
-        
-        let stars = [];
-        let kitchenFloorPattern;
-        
+
         // --- Game Configuration ---
         const PLAYER_SIZE = 30;
         let PLAYER_SPEED = 4;
@@ -138,17 +133,12 @@
         const MAX_ENEMIES = 3;
         const ENEMIES_PER_LEVEL = 10;
         const BOSS_BASE_HP = 10;
-        let DASH_COOLDOWN = 3000; // 3 seconds
-        let DASH_DURATION = 150; // 150ms
-        let DASH_DISTANCE = 80;
-        let SPREAD_BULLETS = 3;
 
         // --- Game State ---
         let player;
         let bullets = [];
         let enemies = [];
         let enemyBullets = [];
-        let particles = [];
         let keys = {};
         let chargeStartTime = 0;
         let isCharging = false;
@@ -160,14 +150,13 @@
         let credits = 0;
         let enemiesKilledThisLevel = 0;
         let boss;
-        let activeTouches = {};
-        let lastDashTime = 0;
-        
+        let activeTouches = {}; // To track touch events robustly
+
         // --- Shop Items ---
         const shopItems = [
             { id: 'hp_up', name: 'Max HP +1', cost: 100, description: 'Increases maximum health by 1.', apply: () => { PLAYER_HP++; player.hp = PLAYER_HP; } },
             { id: 'speed_up', name: 'Speed +10%', cost: 75, description: 'Increases movement speed.', apply: () => { PLAYER_SPEED *= 1.1; } },
-            { id: 'fire_rate', name: 'Fire Rate +15%', cost: 120, description: 'Shoots bullets faster.', apply: () => { player.fireRate *= 0.85; } },
+            { id: 'fire_rate', name: 'Fire Rate +15%', cost: 120, description: 'Shoots bullets faster.', apply: () => { /* Implemented in shoot logic */ player.fireRate *= 0.85; } },
             { id: 'charge_speed', name: 'Charge Speed +20%', cost: 150, description: 'Reduces charged shot time.', apply: () => { CHARGE_TIME *= 0.8; } },
             { id: 'bullet_damage', name: 'Bullet Damage +1', cost: 200, description: 'Increases base bullet damage.', apply: () => { player.bulletDamage++; } },
             { id: 'charged_damage', name: 'Charged Damage x1.5', cost: 180, description: 'Increases charged shot damage.', apply: () => { CHARGED_SHOT_MULTIPLIER += 0.5; } },
@@ -179,12 +168,7 @@
             { id: 'rear_cannon', name: 'Rear Cannon', cost: 350, description: 'Adds a rear-facing gun.', apply: () => { player.rearCannon = true; }, oneTime: true },
             { id: 'homing_missiles', name: 'Homing Missiles', cost: 800, description: '5% chance to fire a homing missile.', apply: () => { player.homingMissiles = true; }, oneTime: true },
             { id: 'shield_orb', name: 'Shield Orb', cost: 700, description: 'An orb blocks one enemy bullet.', apply: () => { player.shieldOrb = true; }, oneTime: true },
-            { id: 'nuke', name: 'Screen Nuke', cost: 300, description: 'Clears all enemies and bullets.', apply: () => { enemies = []; enemyBullets = []; } },
-            { id: 'dash_cooldown', name: 'Dash Cooldown -10%', cost: 150, description: 'Reduces dash cooldown.', apply: () => { DASH_COOLDOWN *= 0.9; } },
-            { id: 'dash_distance', name: 'Dash Distance +10%', cost: 180, description: 'Increases dash range.', apply: () => { DASH_DISTANCE *= 1.1; } },
-            { id: 'weapon_switcher', name: 'Unlock Weapons', cost: 300, description: 'Enables switching between weapon types.', apply: () => { player.weaponsUnlocked = true; }, oneTime: true },
-            { id: 'beam_power', name: 'Beam Power +1', cost: 250, description: 'Increases beam damage.', apply: () => { player.beamDamage++; } },
-            { id: 'spread_bullets', name: 'Spread Shot +1', cost: 200, description: 'Adds another bullet to spread shot.', apply: () => { SPREAD_BULLETS++; } }
+            { id: 'nuke', name: 'Screen Nuke', cost: 300, description: 'Clears all enemies and bullets.', apply: () => { enemies = []; enemyBullets = []; } }
         ];
         let shopButtons = [];
 
@@ -192,72 +176,6 @@
         function resizeCanvas() {
             canvas.width = 800;
             canvas.height = 600;
-        }
-
-        function createStars() {
-            stars = [];
-            for (let i = 0; i < 200; i++) {
-                stars.push({
-                    x: Math.random() * canvas.width,
-                    y: Math.random() * canvas.height,
-                    size: Math.random() * 2,
-                    speed: Math.random() * 0.5 + 0.1
-                });
-            }
-        }
-
-        function createKitchenFloorPattern() {
-            const patternCanvas = document.createElement('canvas');
-            const patternCtx = patternCanvas.getContext('2d');
-            patternCanvas.width = 40;
-            patternCanvas.height = 40;
-
-            patternCtx.fillStyle = '#f7f3e8';
-            patternCtx.fillRect(0, 0, 40, 40);
-            patternCtx.fillStyle = '#d2d1d4';
-            patternCtx.fillRect(20, 0, 20, 20);
-            patternCtx.fillRect(0, 20, 20, 20);
-            kitchenFloorPattern = ctx.createPattern(patternCanvas, 'repeat');
-        }
-
-        function drawStars() {
-            ctx.fillStyle = '#6b666a'; // Dust color
-            stars.forEach(star => {
-                ctx.beginPath();
-                ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
-                ctx.fill();
-                star.y += star.speed;
-                if (star.y > canvas.height) {
-                    star.y = 0;
-                    star.x = Math.random() * canvas.width;
-                }
-            });
-        }
-        
-        function addParticles(x, y, color, count, speed, size) {
-            for (let i = 0; i < count; i++) {
-                const angle = Math.random() * Math.PI * 2;
-                particles.push({
-                    x, y,
-                    speedX: Math.cos(angle) * speed,
-                    speedY: Math.sin(angle) * speed,
-                    color, size,
-                    life: 50 + Math.random() * 50
-                });
-            }
-        }
-
-        function drawParticles() {
-            particles.forEach((p, i) => {
-                p.x += p.speedX;
-                p.y += p.speedY;
-                p.life--;
-                ctx.fillStyle = p.color;
-                ctx.beginPath();
-                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-                ctx.fill();
-                if (p.life <= 0) particles.splice(i, 1);
-            });
         }
 
         // --- Game Object Classes ---
@@ -268,7 +186,7 @@
                 this.width = PLAYER_SIZE;
                 this.height = PLAYER_SIZE;
                 this.hp = PLAYER_HP;
-                this.color = '#7d7465'; // Dust ship color
+                this.color = '#00ff00';
                 this.lastShotTime = 0;
                 this.fireRate = 300; // ms between shots
                 this.bulletDamage = 1;
@@ -280,36 +198,16 @@
                 this.homingMissiles = false;
                 this.shieldOrb = false;
                 this.shieldOrbAngle = 0;
-                this.dashActive = false;
-                this.dashEndTime = 0;
-                this.dashDirection = { x: 0, y: 0 };
-                this.weaponsUnlocked = false;
-                this.weapon = 'normal'; // normal, beam, spread
-                this.beamDamage = 1;
             }
 
             draw() {
-                // Draw player ship as a jagged, dust-like shape
                 ctx.fillStyle = this.color;
-                ctx.beginPath();
-                ctx.moveTo(this.x, this.y + this.height);
-                ctx.lineTo(this.x + this.width * 0.25, this.y + this.height * 0.5);
-                ctx.lineTo(this.x + this.width * 0.5, this.y);
-                ctx.lineTo(this.x + this.width * 0.75, this.y + this.height * 0.5);
-                ctx.lineTo(this.x + this.width, this.y + this.height);
-                ctx.lineTo(this.x + this.width * 0.5, this.y + this.height * 0.75);
-                ctx.closePath();
-                ctx.fill();
-
-                if (this.dashActive) {
-                    ctx.fillStyle = 'rgba(150, 150, 150, 0.5)';
-                    ctx.fillRect(this.x - 5, this.y - 5, this.width + 10, this.height + 10);
-                }
+                ctx.fillRect(this.x, this.y, this.width, this.height);
                 if (this.shieldOrb) {
                     this.shieldOrbAngle += 0.05;
                     const orbX = this.x + this.width / 2 + Math.cos(this.shieldOrbAngle) * 50;
                     const orbY = this.y + this.height / 2 + Math.sin(this.shieldOrbAngle) * 50;
-                    ctx.fillStyle = 'rgba(200, 200, 200, 0.8)';
+                    ctx.fillStyle = 'rgba(0, 150, 255, 0.8)';
                     ctx.beginPath();
                     ctx.arc(orbX, orbY, 8, 0, Math.PI * 2);
                     ctx.fill();
@@ -317,25 +215,13 @@
             }
 
             update() {
-                if (this.dashActive) {
-                    this.x += this.dashDirection.x * DASH_DISTANCE / DASH_DURATION;
-                    this.y += this.dashDirection.y * DASH_DISTANCE / DASH_DURATION;
-                    if (Date.now() > this.dashEndTime) {
-                        this.dashActive = false;
-                        this.color = '#7d7465';
-                    }
-                    return;
-                }
+                // Movement based on the 'keys' object state
+                if ((keys['i'] || keys['I']) && this.y > 0) this.y -= PLAYER_SPEED;
+                if ((keys['k'] || keys['K']) && this.y < canvas.height - this.height) this.y += PLAYER_SPEED;
+                if ((keys['j'] || keys['J']) && this.x > 0) this.x -= PLAYER_SPEED;
+                if ((keys['l'] || keys['L']) && this.x < canvas.width - this.width) this.x += PLAYER_SPEED;
 
-                if (this.weapon === 'beam' && (keys['w'] || keys['a'] || keys['s'] || keys['d'])) {
-                     // Can't move while shooting with beam weapon
-                } else {
-                    if ((keys['i'] || keys['I']) && this.y > 0) this.y -= PLAYER_SPEED;
-                    if ((keys['k'] || keys['K']) && this.y < canvas.height - this.height) this.y += PLAYER_SPEED;
-                    if ((keys['j'] || keys['J']) && this.x > 0) this.x -= PLAYER_SPEED;
-                    if ((keys['l'] || keys['L']) && this.x < canvas.width - this.width) this.x += PLAYER_SPEED;
-                }
-                
+                // Shooting based on the 'keys' object state (allows continuous fire)
                 if (!isCharging && !isFullyCharged) {
                     if (keys['w'] || keys['W']) this.shoot('w', false);
                     if (keys['a'] || keys['A']) this.shoot('a', false);
@@ -354,37 +240,23 @@
                 const speedY = direction === 'w' ? -BULLET_SPEED : direction === 's' ? BULLET_SPEED : 0;
                 const piercing = isCharged ? true : this.piercing;
 
-                if (this.weapon === 'normal') {
-                    bullets.push(new Bullet(this.x + this.width / 2 - bulletSize / 2, this.y + this.height / 2 - bulletSize / 2, bulletSize, '#f7f3e8', speedX, speedY, damage, piercing));
-                } else if (this.weapon === 'beam') {
-                    if (direction === 'w') {
-                        bullets.push(new Bullet(this.x + this.width / 2 - 5, this.y, 10, '#d2d1d4', 0, -BULLET_SPEED * 2, this.beamDamage, true));
-                    }
-                } else if (this.weapon === 'spread') {
-                    const spreadAngle = 0.5; // radians
-                    for (let i = 0; i < SPREAD_BULLETS; i++) {
-                        const angle = Math.atan2(speedY, speedX) + (i - Math.floor(SPREAD_BULLETS / 2)) * spreadAngle / (SPREAD_BULLETS - 1 || 1);
-                        bullets.push(new Bullet(this.x + this.width / 2, this.y + this.height / 2, bulletSize, '#f7f3e8', Math.cos(angle) * BULLET_SPEED, Math.sin(angle) * BULLET_SPEED, damage));
-                    }
-                }
+                // Main bullet
+                bullets.push(new Bullet(this.x + this.width / 2 - bulletSize / 2, this.y + this.height / 2 - bulletSize / 2, bulletSize, '#00ff00', speedX, speedY, damage, piercing));
                 
                 if (this.homingMissiles && Math.random() < 0.05) {
-                    bullets.push(new Bullet(this.x + this.width / 2, this.y, 8, '#a36d2c', 0, -5, damage * 2, false, true));
+                     bullets.push(new Bullet(this.x + this.width / 2, this.y, 8, '#ff9900', 0, -5, damage * 2, false, true));
                 }
                 if (this.sideCannons && !isCharged) {
-                    bullets.push(new Bullet(this.x - 5, this.y + this.height/2, bulletSize, '#f7f3e8', speedX, speedY, damage, piercing));
-                    bullets.push(new Bullet(this.x + this.width - 5, this.y + this.height/2, bulletSize, '#f7f3e8', speedX, speedY, damage, piercing));
+                     bullets.push(new Bullet(this.x - 5, this.y + this.height/2, bulletSize, '#00dd00', speedX, speedY, damage, piercing));
+                     bullets.push(new Bullet(this.x + this.width - 5, this.y + this.height/2, bulletSize, '#00dd00', speedX, speedY, damage, piercing));
                 }
                 if (this.rearCannon && !isCharged) {
-                    bullets.push(new Bullet(this.x + this.width/2, this.y + this.height, bulletSize, '#f7f3e8', -speedX, -speedY, damage, piercing));
+                     bullets.push(new Bullet(this.x + this.width/2, this.y + this.height, bulletSize, '#00dd00', -speedX, -speedY, damage, piercing));
                 }
-                addParticles(this.x + this.width / 2, this.y + this.height, '#f7f3e8', 5, 1, 1);
             }
             
             takeDamage(damage) {
-                if (this.dashActive) return;
                 this.hp -= damage;
-                addParticles(this.x + this.width / 2, this.y + this.height / 2, '#ff4d4d', 10, 2, 2);
                 if (this.hp <= 0) {
                     if (this.extraLives > 0) {
                         this.extraLives--;
@@ -392,29 +264,6 @@
                     } else {
                         gameState = 'gameOver';
                     }
-                }
-            }
-
-            dash() {
-                if (Date.now() - lastDashTime > DASH_COOLDOWN) {
-                    lastDashTime = Date.now();
-                    this.dashActive = true;
-                    this.dashEndTime = Date.now() + DASH_DURATION;
-                    this.color = '#c2a176';
-                    
-                    let dx = 0; let dy = 0;
-                    if (keys['i'] || keys['I']) dy -= 1;
-                    if (keys['k'] || keys['K']) dy += 1;
-                    if (keys['j'] || keys['J']) dx -= 1;
-                    if (keys['l'] || keys['L']) dx += 1;
-                    
-                    if (dx === 0 && dy === 0) { // If no move keys are pressed, dash forward
-                        dy = -1;
-                    }
-
-                    const magnitude = Math.sqrt(dx * dx + dy * dy);
-                    this.dashDirection.x = dx / magnitude || 0;
-                    this.dashDirection.y = dy / magnitude || 0;
                 }
             }
         }
@@ -428,55 +277,35 @@
                 this.hits = 0;
                 this.homing = homing;
                 this.target = null;
-                this.color = color;
             }
 
-            draw() {
-                ctx.fillStyle = this.color;
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, this.width / 2, 0, Math.PI * 2);
-                ctx.fill();
-            }
+            draw() { ctx.fillStyle = this.color; ctx.fillRect(this.x, this.y, this.width, this.height); }
 
             update() {
                 if (this.homing && (enemies.length > 0 || boss)) {
                     if (!this.target || this.target.hp <= 0) {
                         this.target = boss || enemies[Math.floor(Math.random() * enemies.length)];
                     }
-                    if (this.target) {
-                        const angle = Math.atan2(this.target.y + this.target.height / 2 - this.y, this.target.x + this.target.width / 2 - this.x);
-                        this.speedX = Math.cos(angle) * BULLET_SPEED;
-                        this.speedY = Math.sin(angle) * BULLET_SPEED;
-                    }
+                    const angle = Math.atan2(this.target.y - this.y, this.target.x - this.x);
+                    this.x += Math.cos(angle) * BULLET_SPEED;
+                    this.y += Math.sin(angle) * BULLET_SPEED;
+                } else {
+                    this.x += this.speedX;
+                    this.y += this.speedY;
                 }
-                this.x += this.speedX;
-                this.y += this.speedY;
             }
         }
 
         class Enemy {
             constructor(x, y, size, hp, speed, creditValue) {
                 this.x = x; this.y = y; this.width = size; this.height = size;
-                this.hp = hp; this.speed = speed; this.color = '#7d7465';
+                this.hp = hp; this.speed = speed; this.color = '#ff0000';
                 this.shootCooldown = Math.random() * 1000 + 1500;
                 this.lastShotTime = Date.now();
                 this.creditValue = creditValue;
-                this.type = 'shooter';
             }
 
-            draw() {
-                // Draw enemy as a jagged, dust-like shape
-                ctx.fillStyle = this.color;
-                ctx.beginPath();
-                ctx.moveTo(this.x + this.width, this.y + this.height * 0.5);
-                ctx.lineTo(this.x, this.y);
-                ctx.lineTo(this.x + this.width * 0.25, this.y + this.height * 0.5);
-                ctx.lineTo(this.x, this.y + this.height);
-                ctx.lineTo(this.x + this.width, this.y + this.height);
-                ctx.lineTo(this.x + this.width * 0.75, this.y + this.height * 0.5);
-                ctx.closePath();
-                ctx.fill();
-            }
+            draw() { ctx.fillStyle = this.color; ctx.fillRect(this.x, this.y, this.width, this.height); }
 
             update() {
                 if (this.x < player.x) this.x += this.speed; else this.x -= this.speed;
@@ -486,87 +315,26 @@
 
             shoot() {
                 const angle = Math.atan2(player.y - this.y, player.x - this.x);
-                enemyBullets.push(new Bullet(this.x + this.width / 2, this.y + this.height / 2, BULLET_SIZE, '#6b666a', Math.cos(angle) * ENEMY_BULLET_SPEED, Math.sin(angle) * ENEMY_BULLET_SPEED));
-            }
-        }
-        
-        class Swarmer extends Enemy {
-            constructor(x, y, size, hp, speed, creditValue) {
-                super(x, y, size, hp, speed * 2, creditValue);
-                this.color = '#a36d2c';
-                this.type = 'swarmer';
-            }
-            draw() {
-                ctx.fillStyle = this.color;
-                ctx.beginPath();
-                ctx.moveTo(this.x + this.width / 2, this.y);
-                ctx.lineTo(this.x, this.y + this.height * 0.75);
-                ctx.lineTo(this.x + this.width / 2, this.y + this.height);
-                ctx.lineTo(this.x + this.width, this.y + this.height * 0.75);
-                ctx.closePath();
-                ctx.fill();
-            }
-            shoot() {} // Swarmers don't shoot
-        }
-
-        class Turret extends Enemy {
-            constructor(x, y, size, hp, creditValue) {
-                super(x, y, size, hp, 0, creditValue);
-                this.color = '#c2a176';
-                this.type = 'turret';
-                this.shootCooldown = 2000;
-            }
-            draw() {
-                ctx.fillStyle = this.color;
-                ctx.beginPath();
-                ctx.arc(this.x + this.width / 2, this.y + this.height / 2, this.width / 2, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.strokeStyle = '#6b666a';
-                ctx.lineWidth = 2;
-                ctx.beginPath();
-                ctx.moveTo(this.x + this.width / 2, this.y + this.height / 2);
-                const angle = Math.atan2(player.y - this.y, player.x - this.x);
-                ctx.lineTo(this.x + this.width / 2 + Math.cos(angle) * this.width, this.y + this.height / 2 + Math.sin(angle) * this.height);
-                ctx.stroke();
-            }
-            update() { /* Does not move */
-                if (Date.now() - this.lastShotTime > this.shootCooldown) { this.shoot(); this.lastShotTime = Date.now(); }
-            }
-            shoot() {
-                const angle = Math.atan2(player.y - this.y, player.x - this.x);
-                enemyBullets.push(new Bullet(this.x + this.width / 2, this.y + this.height / 2, BULLET_SIZE, '#6b666a', Math.cos(angle) * ENEMY_BULLET_SPEED * 1.5, Math.sin(angle) * ENEMY_BULLET_SPEED * 1.5));
+                enemyBullets.push(new Bullet(this.x + this.width / 2, this.y + this.height / 2, BULLET_SIZE, '#ff4d4d', Math.cos(angle) * ENEMY_BULLET_SPEED, Math.sin(angle) * ENEMY_BULLET_SPEED));
             }
         }
         
         class Boss extends Enemy {
              constructor(x, y, size, hp, creditValue) {
-               super(x, y, size, hp, 0.5, creditValue);
-               this.color = '#946d5c';
-               this.attackPattern = 'circle';
-               this.lastPatternChange = Date.now();
-               this.patternDuration = 7000;
-               this.shotAngle = 0;
-             }
-             draw() {
-                ctx.fillStyle = this.color;
-                ctx.beginPath();
-                ctx.moveTo(this.x + this.width * 0.5, this.y);
-                ctx.lineTo(this.x, this.y + this.height * 0.5);
-                ctx.lineTo(this.x + this.width * 0.5, this.y + this.height);
-                ctx.lineTo(this.x + this.width, this.y + this.height * 0.5);
-                ctx.closePath();
-                ctx.fill();
-                ctx.strokeStyle = '#6b666a';
-                ctx.lineWidth = 4;
-                ctx.stroke();
+                super(x, y, size, hp, 0.5, creditValue);
+                this.color = '#ff00ff';
+                this.attackPattern = 'circle';
+                this.lastPatternChange = Date.now();
+                this.patternDuration = 7000;
+                this.shotAngle = 0;
              }
              
              update() {
-                if (Date.now() - this.lastPatternChange > this.patternDuration) {
-                   this.attackPattern = Math.random() < 0.5 ? 'circle' : 'barrage';
-                   this.lastPatternChange = Date.now();
-                }
-                if (Date.now() - this.lastShotTime > this.shootCooldown) { this.shoot(); this.lastShotTime = Date.now(); }
+                 if (Date.now() - this.lastPatternChange > this.patternDuration) {
+                     this.attackPattern = Math.random() < 0.5 ? 'circle' : 'barrage';
+                     this.lastPatternChange = Date.now();
+                 }
+                 if (Date.now() - this.lastShotTime > this.shootCooldown) { this.shoot(); this.lastShotTime = Date.now(); }
              }
              
              shoot() {
@@ -574,16 +342,16 @@
                     this.shootCooldown = 250;
                     const bulletCount = 6;
                     for (let i = 0; i < bulletCount; i++) {
-                       const angle = this.shotAngle + (i * Math.PI / (bulletCount / 2));
-                       enemyBullets.push(new Bullet(this.x + this.width / 2, this.y + this.height / 2, BULLET_SIZE, '#946d5c', Math.cos(angle) * ENEMY_BULLET_SPEED, Math.sin(angle) * ENEMY_BULLET_SPEED));
+                        const angle = this.shotAngle + (i * Math.PI / (bulletCount / 2));
+                        enemyBullets.push(new Bullet(this.x + this.width / 2, this.y + this.height / 2, BULLET_SIZE, '#ff88ff', Math.cos(angle) * ENEMY_BULLET_SPEED, Math.sin(angle) * ENEMY_BULLET_SPEED));
                     }
                     this.shotAngle += 0.2;
                  } else { // barrage
                     this.shootCooldown = (level === 3) ? 700 : 500;
                     const bulletCount = (level === 3) ? 3 : 5;
                     for (let i = 0; i < bulletCount; i++) {
-                       const angle = Math.atan2(player.y - this.y, player.x - this.x) + (Math.random() - 0.5);
-                       enemyBullets.push(new Bullet(this.x + this.width / 2, this.y + this.height / 2, BULLET_SIZE * 1.5, '#946d5c', Math.cos(angle) * ENEMY_BULLET_SPEED, Math.sin(angle) * ENEMY_BULLET_SPEED));
+                        const angle = Math.atan2(player.y - this.y, player.x - this.x) + (Math.random() - 0.5);
+                        enemyBullets.push(new Bullet(this.x + this.width / 2, this.y + this.height / 2, BULLET_SIZE * 1.5, '#ff88ff', Math.cos(angle) * ENEMY_BULLET_SPEED, Math.sin(angle) * ENEMY_BULLET_SPEED));
                     }
                  }
              }
@@ -592,8 +360,6 @@
         // --- Game Logic Functions ---
         function init() {
             resizeCanvas();
-            createStars();
-            createKitchenFloorPattern();
             player = new Player(canvas.width / 2 - PLAYER_SIZE / 2, canvas.height - PLAYER_SIZE - 20);
             resetLevel();
             gameState = 'title';
@@ -614,19 +380,10 @@
         }
 
         function spawnEnemy() {
-            const size = ENEMY_SIZE + level;
-            let x, y;
+            const size = ENEMY_SIZE; let x, y;
             if (Math.random() < 0.5) { x = Math.random() < 0.5 ? -size : canvas.width; y = Math.random() * canvas.height; } 
             else { x = Math.random() * canvas.width; y = Math.random() < 0.5 ? -size : canvas.height; }
-
-            const enemyType = Math.random();
-            if (enemyType < 0.5) {
-                enemies.push(new Enemy(x, y, size, ENEMY_HP + level * 0.5, 1 + level * 0.2, 10 + level * 5));
-            } else if (enemyType < 0.8) {
-                enemies.push(new Swarmer(x, y, size * 0.8, ENEMY_HP, 2 + level * 0.5, 8 + level * 4));
-            } else {
-                enemies.push(new Turret(Math.random() * canvas.width, Math.random() * canvas.height * 0.4, size, ENEMY_HP * 1.5 + level, 15 + level * 6));
-            }
+            enemies.push(new Enemy(x, y, size, ENEMY_HP, 1, 10));
         }
 
         function handleCollisions() {
@@ -635,13 +392,11 @@
                 targetList.forEach((enemy, eIndex) => {
                     if (enemy && bullet.x < enemy.x + enemy.width && bullet.x + bullet.width > enemy.x && bullet.y < enemy.y + enemy.height && bullet.y + bullet.height > enemy.y) {
                         enemy.hp -= bullet.damage;
-                        addParticles(bullet.x, bullet.y, '#f7f3e8', 3, 0.5, 1);
                         if (!bullet.piercing || bullet.hits > 0) { bullets.splice(bIndex, 1); } 
                         else { bullet.hits++; }
 
                         if (enemy.hp <= 0) {
                             credits += Math.floor(enemy.creditValue * player.creditMultiplier);
-                            addParticles(enemy.x, enemy.y, enemy.color, 15, 3, 3);
                             if (boss) { boss = null; nextLevel(); } 
                             else { enemies.splice(eIndex, 1); enemiesKilledThisLevel++; }
                         }
@@ -650,8 +405,6 @@
             });
 
             enemyBullets.forEach((bullet, bIndex) => {
-                if (player.dashActive) return;
-
                 if (bullet.x < player.x + player.width && bullet.x + bullet.width > player.x && bullet.y < player.y + player.height && bullet.y + bullet.height > player.y) {
                     player.takeDamage(bullet.damage);
                     enemyBullets.splice(bIndex, 1);
@@ -665,22 +418,10 @@
                     }
                 }
             });
-
-            enemies.forEach((enemy, eIndex) => {
-                if (player.dashActive) return;
-
-                if (enemy.x < player.x + player.width && enemy.x + enemy.width > player.x && enemy.y < player.y + player.height && enemy.y + enemy.height > player.y) {
-                    player.takeDamage(enemy.hp);
-                    addParticles(enemy.x, enemy.y, enemy.color, 15, 3, 3);
-                    enemies.splice(eIndex, 1);
-                }
-            });
         }
         
         function updateUI() {
-            const dashCooldownLeft = Math.max(0, DASH_COOLDOWN - (Date.now() - lastDashTime));
-            const dashCooldownDisplay = (dashCooldownLeft > 0) ? ` | Dash: ${Math.ceil(dashCooldownLeft / 1000)}s` : ' | Dash: READY';
-            gameInfoLeft.textContent = `HP: ${player.hp}/${PLAYER_HP} | Level: ${level} | Weapon: ${player.weapon} | Lives: ${player.extraLives}${dashCooldownDisplay}`;
+            gameInfoLeft.textContent = `HP: ${player.hp}/${PLAYER_HP} | Level: ${level} | Lives: ${player.extraLives}`;
             gameInfoRight.textContent = `Credits: ${credits}`;
         }
 
@@ -688,10 +429,10 @@
         function drawTitleScreen() {
             ctx.fillStyle = '#000';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
-            ctx.fillStyle = '#f7f3e8';
+            ctx.fillStyle = '#00ff00';
             ctx.font = '70px "Courier New"';
             ctx.textAlign = 'center';
-            ctx.fillText('DUST BATTLE', canvas.width / 2, canvas.height / 2 - 50);
+            ctx.fillText('RETRO SHOOTER', canvas.width / 2, canvas.height / 2 - 50);
             ctx.font = '30px "Courier New"';
             ctx.fillText('Click to Start', canvas.width / 2, canvas.height / 2 + 50);
         }
@@ -699,7 +440,7 @@
         function drawShop() {
             ctx.fillStyle = 'rgba(0, 0, 0, 0.9)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
-            ctx.fillStyle = '#d2d1d4';
+            ctx.fillStyle = '#ffff00';
             ctx.font = '50px "Courier New"';
             ctx.textAlign = 'center';
             ctx.fillText('UPGRADE SHOP', canvas.width / 2, 80);
@@ -716,11 +457,11 @@
                 const y = startY + row * (itemHeight + 20);
                 
                 const canAfford = credits >= item.cost;
-                const isPurchased = item.oneTime && player[item.id.replace(/_(\w)/g, (match, p1) => p1.toUpperCase())];
+                const isPurchased = item.oneTime && player[item.id];
                 
-                ctx.fillStyle = isPurchased ? '#555' : canAfford ? '#3b4d3b' : '#4d3b3b';
+                ctx.fillStyle = isPurchased ? '#555' : canAfford ? '#004400' : '#440000';
                 ctx.fillRect(x, y, itemWidth, itemHeight);
-                ctx.strokeStyle = isPurchased ? '#888' : canAfford ? '#d2d1d4' : '#6b666a';
+                ctx.strokeStyle = isPurchased ? '#888' : canAfford ? '#00ff00' : '#ff0000';
                 ctx.strokeRect(x, y, itemWidth, itemHeight);
                 
                 ctx.fillStyle = isPurchased ? '#aaa' : '#fff';
@@ -731,15 +472,15 @@
                 ctx.fillStyle = '#ccc';
                 ctx.fillText(`Cost: ${item.cost}`, x + 10, y + 50);
                 if (isPurchased) {
-                    ctx.fillStyle = '#d2d1d4';
-                    ctx.fillText('PURCHASED', x + 10, y + 75);
+                     ctx.fillStyle = '#ffff00';
+                     ctx.fillText('PURCHASED', x + 10, y + 75);
                 }
 
                 shopButtons.push({ x, y, width: itemWidth, height: itemHeight, item });
             });
             
             const btnX = canvas.width/2 - 100, btnY = canvas.height - 70, btnW = 200, btnH = 50;
-            ctx.fillStyle = '#3b4d3b';
+            ctx.fillStyle = '#0000cc';
             ctx.fillRect(btnX, btnY, btnW, btnH);
             ctx.strokeStyle = '#fff';
             ctx.strokeRect(btnX, btnY, btnW, btnH);
@@ -751,22 +492,16 @@
         }
 
         function drawGame() {
-            // Draw kitchen floor background
-            ctx.fillStyle = kitchenFloorPattern;
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            
-            drawStars();
-            
-            if (!player) return;
-            
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            if (!player) return; // Don't run if player doesn't exist yet
             player.update(); player.draw();
             if (isCharging || isFullyCharged) drawChargeBuffer();
             bullets.forEach((b, i) => { b.update(); b.draw(); if (b.y < -10 || b.y > canvas.height + 10 || b.x < -10 || b.x > canvas.width + 10) bullets.splice(i, 1); });
             enemyBullets.forEach((b, i) => { b.update(); b.draw(); if (b.y < -10 || b.y > canvas.height + 10 || b.x < -10 || b.x > canvas.width + 10) enemyBullets.splice(i, 1); });
             
             if (gameState === 'playing') {
-                if (enemies.length < MAX_ENEMIES + level && Date.now() - lastEnemySpawn > ENEMY_SPAWN_INTERVAL - level * 50) { spawnEnemy(); lastEnemySpawn = Date.now(); }
-                if (enemiesKilledThisLevel >= ENEMIES_PER_LEVEL + level * 2) { nextLevel(); }
+                if (enemies.length < MAX_ENEMIES && Date.now() - lastEnemySpawn > ENEMY_SPAWN_INTERVAL) { spawnEnemy(); lastEnemySpawn = Date.now(); }
+                if (enemiesKilledThisLevel >= ENEMIES_PER_LEVEL) { nextLevel(); }
             } else if (gameState === 'boss') {
                 if (!boss) {
                     const bossHP = BOSS_BASE_HP * (level / 3);
@@ -777,38 +512,11 @@
 
             enemies.forEach(e => { e.update(); e.draw(); });
             handleCollisions();
-            drawParticles();
             updateUI();
         }
 
-        function drawChargeBuffer() {
-            if (!isCharging && !isFullyCharged) return;
-            const elapsedTime = Date.now() - chargeStartTime;
-            const chargeRatio = Math.min(elapsedTime / CHARGE_TIME, 1);
-            if (elapsedTime >= CHARGE_TIME) { isFullyCharged = true; }
-            let bufferColor; let bufferRadius = player.width * 0.7;
-            if (isFullyCharged) {
-                const pulse = Math.sin(Date.now() / 100) * 2; bufferRadius += pulse;
-                const greenValue = 200 + Math.floor(Math.sin(Date.now() / 100) * 55);
-                bufferColor = `rgba(150, 150, 150, 0.7)`;
-            } else {
-                bufferColor = `rgba(150, 150, 150, ${0.3 + 0.4 * chargeRatio})`;
-            }
-            ctx.beginPath();
-            ctx.arc(player.x + player.width / 2, player.y + player.height / 2, bufferRadius, 0, Math.PI * 2);
-            ctx.fillStyle = bufferColor; ctx.fill();
-        }
-
-        function drawGameOver() {
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            ctx.fillStyle = '#c2a176';
-            ctx.font = '50px "Courier New"';
-            ctx.textAlign = 'center';
-            ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2);
-            ctx.font = '24px "Courier New"';
-            ctx.fillText('Click to Restart', canvas.width / 2, canvas.height / 2 + 40);
-        }
+        function drawChargeBuffer() { /* ... same as before ... */ }
+        function drawGameOver() { /* ... same as before ... */ }
 
         // --- Main Game Loop ---
         function gameLoop() {
@@ -837,7 +545,7 @@
                             gameState = (level % 3 === 0) ? 'boss' : 'playing';
                         } else if (btn.item) {
                             const item = btn.item;
-                            const isPurchased = item.oneTime && player[item.id.replace(/_(\w)/g, (match, p1) => p1.toUpperCase())];
+                            const isPurchased = item.oneTime && player[item.id];
                             if (credits >= item.cost && !isPurchased) {
                                 credits -= item.cost;
                                 item.apply();
@@ -854,18 +562,10 @@
         window.addEventListener('keydown', (e) => {
             keys[e.key] = true;
             const shootKey = e.key.toLowerCase();
-            if (e.key === ' ' && (gameState === 'playing' || gameState === 'boss')) {
-                player.dash();
-            }
-            if (player.weaponsUnlocked) {
-                if (e.key === '1') player.weapon = 'normal';
-                if (e.key === '2') player.weapon = 'beam';
-                if (e.key === '3') player.weapon = 'spread';
-            }
             if (keys['Shift'] && ['w', 'a', 's', 'd'].includes(shootKey) && (gameState === 'playing' || gameState === 'boss')) {
-                if (!isCharging && !isFullyCharged) {
-                    isCharging = true;
-                    chargeStartTime = Date.now();
+                if (!isCharging && !isFullyCharged) { 
+                    isCharging = true; 
+                    chargeStartTime = Date.now(); 
                 }
             }
         });
@@ -909,6 +609,37 @@
         window.addEventListener('touchstart', handleTouchStart, { passive: false });
         window.addEventListener('touchend', handleTouchEnd, { passive: false });
         window.addEventListener('touchcancel', handleTouchEnd, { passive: false });
+
+        // --- Re-pasting functions ---
+        function drawChargeBuffer() {
+            if (!isCharging && !isFullyCharged) return;
+            const elapsedTime = Date.now() - chargeStartTime;
+            const chargeRatio = Math.min(elapsedTime / CHARGE_TIME, 1);
+            if (elapsedTime >= CHARGE_TIME) { isFullyCharged = true; }
+            let bufferColor; let bufferRadius = player.width * 0.7;
+            if (isFullyCharged) {
+                const pulse = Math.sin(Date.now() / 100) * 2; bufferRadius += pulse;
+                const greenValue = 200 + Math.floor(Math.sin(Date.now() / 100) * 55);
+                bufferColor = `rgba(0, ${greenValue}, 0, 0.7)`;
+            } else {
+                const greenValue = 150 + Math.floor(105 * chargeRatio);
+                bufferColor = `rgba(0, ${greenValue}, 0, ${0.3 + 0.4 * chargeRatio})`;
+            }
+            ctx.beginPath();
+            ctx.arc(player.x + player.width / 2, player.y + player.height / 2, bufferRadius, 0, Math.PI * 2);
+            ctx.fillStyle = bufferColor; ctx.fill();
+        }
+
+        function drawGameOver() {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#ff0000';
+            ctx.font = '50px "Courier New"';
+            ctx.textAlign = 'center';
+            ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2);
+            ctx.font = '24px "Courier New"';
+            ctx.fillText('Click to Restart', canvas.width / 2, canvas.height / 2 + 40);
+        }
 
         // --- Start Game ---
         init();
