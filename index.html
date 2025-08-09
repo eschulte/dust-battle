@@ -20,8 +20,7 @@
             overflow: hidden; /* Prevent scrolling */
         }
         canvas {
-            /* background-color: #080808; */
-            background-image: url("./img/kitchenfloor2.png");
+            background-image: url("./img/kitchenfloor_dark.png");
             background-repeat: no-repeat;
             background-size: 800px 600px;
             box-shadow: 0 0 20px rgba(0, 255, 0, 0.5);
@@ -302,7 +301,7 @@
 
         class Enemy {
             constructor(x, y, size, hp, speed, creditValue) {
-                this.x = x; this.y = y; this.width = size; this.height = size;
+                this.x = x; this.y = y; this.width = size * 2; this.height = size * 2;
                 this.hp = hp; this.speed = speed;
                 this.image = new Image();
                 this.image.src = 'img/enemy-ship.png';
