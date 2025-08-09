@@ -320,7 +320,7 @@
 
             shoot() {
                 const angle = Math.atan2(player.y - this.y, player.x - this.x);
-                enemyBullets.push(new Bullet(this.x + this.width / 2, this.y + this.height / 2, BULLET_SIZE, '#fa9393', Math.cos(angle) * ENEMY_BULLET_SPEED, Math.sin(angle) * ENEMY_BULLET_SPEED));
+                enemyBullets.push(new Bullet(this.x + this.width / 2, this.y + this.height / 2, BULLET_SIZE, '#fa9393', Math.cos(angle) * (ENEMY_BULLET_SPEED + (level/2)), Math.sin(angle) * (ENEMY_BULLET_SPEED + (level/2))));
             }
         }
         
@@ -351,7 +351,7 @@
                     const bulletCount = 6;
                     for (let i = 0; i < bulletCount; i++) {
                         const angle = this.shotAngle + (i * Math.PI / (bulletCount / 2));
-                        enemyBullets.push(new Bullet(this.x + this.width / 2, this.y + this.height / 2, BULLET_SIZE, '#ff88ff', Math.cos(angle) * ENEMY_BULLET_SPEED, Math.sin(angle) * ENEMY_BULLET_SPEED));
+                        enemyBullets.push(new Bullet(this.x + this.width / 2, this.y + this.height / 2, BULLET_SIZE, '#ff88ff', Math.cos(angle) * (ENEMY_BULLET_SPEED + (level/2)), Math.sin(angle) * (ENEMY_BULLET_SPEED + (level/2))));
                     }
                     this.shotAngle += 0.2;
                  } else { // barrage
@@ -359,7 +359,7 @@
                     const bulletCount = (level === 3) ? 3 : 5;
                     for (let i = 0; i < bulletCount; i++) {
                         const angle = Math.atan2(player.y - this.y, player.x - this.x) + (Math.random() - 0.5);
-                        enemyBullets.push(new Bullet(this.x + this.width / 2, this.y + this.height / 2, BULLET_SIZE * 1.5, '#ff88ff', Math.cos(angle) * ENEMY_BULLET_SPEED, Math.sin(angle) * ENEMY_BULLET_SPEED));
+                        enemyBullets.push(new Bullet(this.x + this.width / 2, this.y + this.height / 2, BULLET_SIZE * 1.5, '#ff88ff', Math.cos(angle) * (ENEMY_BULLET_SPEED + (level/2)), Math.sin(angle) * (ENEMY_BULLET_SPEED + (level/2))));
                     }
                  }
              }
@@ -391,7 +391,7 @@
             const size = ENEMY_SIZE; let x, y;
             if (Math.random() < 0.5) { x = Math.random() < 0.5 ? -size : canvas.width; y = Math.random() * canvas.height; } 
             else { x = Math.random() * canvas.width; y = Math.random() < 0.5 ? -size : canvas.height; }
-            enemies.push(new Enemy(x, y, size, ENEMY_HP, 1, 10));
+            enemies.push(new Enemy(x, y, size, (ENEMY_HP + level), (1 + level/4), 10));
         }
 
         function handleCollisions() {
@@ -508,8 +508,8 @@
             enemyBullets.forEach((b, i) => { b.update(); b.draw(); if (b.y < -10 || b.y > canvas.height + 10 || b.x < -10 || b.x > canvas.width + 10) enemyBullets.splice(i, 1); });
             
             if (gameState === 'playing') {
-                if (enemies.length < MAX_ENEMIES && Date.now() - lastEnemySpawn > ENEMY_SPAWN_INTERVAL) { spawnEnemy(); lastEnemySpawn = Date.now(); }
-                if (enemiesKilledThisLevel >= ENEMIES_PER_LEVEL) { nextLevel(); }
+                if (enemies.length < MAX_ENEMIES && Date.now() - lastEnemySpawn > (ENEMY_SPAWN_INTERVAL - (level * 100))) { spawnEnemy(); lastEnemySpawn = Date.now(); }
+                if (enemiesKilledThisLevel >= (ENEMIES_PER_LEVEL + level)) { nextLevel(); }
             } else if (gameState === 'boss') {
                 if (!boss) {
                     const bossHP = BOSS_BASE_HP * (level / 3);
