@@ -325,17 +325,17 @@
         }
         
         class Boss extends Enemy {
-             constructor(x, y, size, hp, creditValue) {
+          constructor(x, y, size, hp, creditValue, image_src) {
                 super(x, y, size, hp, 0.5, creditValue);
                 this.image = new Image();
-                this.image.src = 'img/boss.png';
+                this.image.src = image_src;
                 this.attackPattern = 'circle';
                 this.lastPatternChange = Date.now();
                 this.patternDuration = 7000;
                 this.shotAngle = 0;
              }
 
-             draw() { ctx.drawImage(this.image, this.x - this.width / 2, this.y - this.height / 2, this.width, this.height); }
+             draw() { ctx.drawImage(this.image, this.x - this.width / 2, this.y - this.height / 2, (this.width * 2), (this.height * 2)); }
              
              update() {
                  if (Date.now() - this.lastPatternChange > this.patternDuration) {
@@ -513,7 +513,7 @@
             } else if (gameState === 'boss') {
                 if (!boss) {
                     const bossHP = BOSS_BASE_HP * (level / 3);
-                    boss = new Boss(canvas.width/2 - 50, 50, 100, bossHP, 250 * (level/3));
+                    boss = new Boss(canvas.width/2 - 50, 50, 100, bossHP * (level/3), 150 * (level/3), level % 6 ? 'img/dustball.png' : 'img/boss.png');
                 }
                 boss.update(); boss.draw();
             }
